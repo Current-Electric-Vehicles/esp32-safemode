@@ -1,0 +1,4 @@
+.pio
+data/www/*
+include/StaticFiles.h
+build/
