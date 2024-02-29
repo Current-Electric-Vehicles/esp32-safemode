@@ -32,4 +32,11 @@ export class SafemodeAPIImpl implements SafemodeAPI {
           .then((j) => j.result);
     }
 
+    public bootIntoApp(): Promise<boolean> {
+        return fetch(this.url("/api/app"), {
+            method: "POST"
+          })
+          .then((r) => r.json())
+          .then((j) => j.result);
+    }
 }

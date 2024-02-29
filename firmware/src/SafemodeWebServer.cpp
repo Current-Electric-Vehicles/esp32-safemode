@@ -84,6 +84,31 @@ void SafemodeWebServer::setup() {
         });
 
     /**
+     * Boot app
+     */
+    webServer.post("/api/app",
+        [](Request &req, Response &res) {
+            ESP_LOGI(TAG, "API Boot Into App");
+
+            const esp_partition_t* update_partition = esp_partition_find_first(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, "app");
+            if (update_partition == nullptr) {
+                ESP_LOGE(TAG, "Unable to esp_ota_get_next_update_partition");
+                JSON_RESPONSE_500();
+                return;
+            }
+
+            if (esp_ota_set_boot_partition(update_partition) != ESP_OK) {
+                ESP_LOGE(TAG, "Unable to esp_ota_set_boot_partition");
+                JSON_RESPONSE_500();
+                return;
+            }
+
+            JSON_RESPONSE_OK();
+            delay(2000);
+            ESP.restart();
+        });
+
+    /**
      * OTA Updates
      */
     webServer.post("/api/update",

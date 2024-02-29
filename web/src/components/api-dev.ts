@@ -26,4 +26,10 @@ export class SafemodeAPIDevImpl implements SafemodeAPI {
       console.log("otaUpdate", file);
       return Promise.resolve(true);
     }
+
+    public async bootIntoApp(): Promise<boolean> {
+      await delay(Math.random() * 500);
+      console.log("bootIntoApp");
+      return Promise.resolve(true);
+  }
 }

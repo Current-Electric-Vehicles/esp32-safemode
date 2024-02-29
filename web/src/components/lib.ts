@@ -3,6 +3,7 @@ export interface SafemodeAPI {
     ping(): Promise<boolean>;
     restart(): Promise<boolean>;
     otaUpdate(file: File): Promise<boolean>
+    bootIntoApp(): Promise<boolean>
 };
 
 export function delay(time: number): Promise<void> {

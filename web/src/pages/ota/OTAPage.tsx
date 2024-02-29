@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ButtonSolid, PageHeader, Section } from '../../components/Theme.tsx';
+import { BorderedList, ButtonSolid, PageHeader, Section } from '../../components/Theme.tsx';
 import { API } from '../../components/api.ts';
 
 function OTAPage() {
@@ -34,13 +34,36 @@ function OTAPage() {
       .finally(() => setUploading(false));
   };
 
+  const onBootIntoApp = () => {
+    API.bootIntoApp()
+      .then((result) => {
+        if (result) {
+          alert("Device is now rebootiung");
+        } else {
+          alert("There was a problem rebooting into the app");
+        }
+      });
+  };
+
   return (
     <>
       <PageHeader>Safemode Update</PageHeader>
       <Section>
       <form>
-        <input id="file" type="file" onChange={(e) => onFileChange(e.target.files)}/>
-        <ButtonSolid disabled={!file || uploading} onClick={onBeginUpdate} className={'mt save'}>Update</ButtonSolid>
+        <BorderedList className={`nopadd`}>
+            <li>
+              <p>
+                  Use the form below to upload a new firmware image. Please allow adequate 
+                  time for the file to upload and the device to update. The device will reboot 
+                  after updating.
+              </p>
+              <input className={'inputFile'} id="file" type="file" onChange={(e) => onFileChange(e.target.files)}/>
+            </li>
+            <li className={'lastItem'}>
+              <ButtonSolid disabled={!file || uploading} onClick={onBeginUpdate} className={'mt save'}>Update</ButtonSolid>
+              <ButtonSolid disabled={uploading} onClick={onBootIntoApp} className={'mt cancel'}>Cancel</ButtonSolid>
+            </li>
+        </BorderedList>
       </form>
       </Section>
     </>
