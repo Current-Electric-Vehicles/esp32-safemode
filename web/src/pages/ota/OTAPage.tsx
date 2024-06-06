@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BorderedList, ButtonSolid, PageHeader, Section } from '../../components/Theme.tsx';
+import { BorderedList, ButtonSolid, Loading, PageHeader, Section } from '../../components/Theme.tsx';
 import { API } from '../../components/api.ts';
 
 function OTAPage() {
@@ -35,6 +35,9 @@ function OTAPage() {
   };
 
   const onBootIntoApp = () => {
+    if (!confirm("Are you sure that you want to cancel?")) {
+      return;
+    }
     API.bootIntoApp()
       .then((result) => {
         if (result) {
@@ -47,25 +50,26 @@ function OTAPage() {
 
   return (
     <>
-      <PageHeader>Safemode Update</PageHeader>
-      <Section>
-      <form>
-        <BorderedList className={`nopadd`}>
-            <li>
-              <p>
-                  Use the form below to upload a new firmware image. Please allow adequate 
-                  time for the file to upload and the device to update. The device will reboot 
-                  after updating.
-              </p>
-              <input className={'inputFile'} id="file" type="file" onChange={(e) => onFileChange(e.target.files)}/>
-            </li>
-            <li className={'lastItem'}>
-              <ButtonSolid disabled={!file || uploading} onClick={onBeginUpdate} className={'mt save'}>Update</ButtonSolid>
-              <ButtonSolid disabled={uploading} onClick={onBootIntoApp} className={'mt cancel'}>Cancel</ButtonSolid>
-            </li>
-        </BorderedList>
-      </form>
-      </Section>
+      {uploading && <Loading>Uploading, please wait...</Loading>}
+      {!uploading && <>
+        <PageHeader>Safemode</PageHeader>
+          <Section>
+            <BorderedList className={`nopadd`}>
+                <li>
+                  <p>
+                      Use the form below to upload a new firmware image. Please allow adequate 
+                      time for the file to upload and the device to update. The device will reboot 
+                      after updating.
+                  </p>
+                  <input className={'inputFile'} id="file" type="file" onChange={(e) => onFileChange(e.target.files)}/>
+                </li>
+                <li className={'lastItem'}>
+                  <ButtonSolid disabled={!file || uploading} onClick={onBeginUpdate} className={'mt save'}>Update</ButtonSolid>
+                  <ButtonSolid disabled={uploading} onClick={onBootIntoApp} className={'mt cancel'}>Cancel</ButtonSolid>
+                </li>
+            </BorderedList>
+          </Section>
+      </>}
     </>
   )
 }

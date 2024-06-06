@@ -22,6 +22,16 @@ export const PageHeader = styled.h1`
     }
 `;
 
+export const Loading = styled.div`
+    align-items: center;
+    display: flex;
+    font-size: 36px;
+    font-weight: 700;
+    height: 100vh;
+    justify-content: center;
+    width: 100%;
+`
+
 export const Section = styled.section`
     border: 1px solid #302D2D;
     border-radius: 8px;

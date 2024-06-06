@@ -12,14 +12,17 @@
 class SafemodeWebServer {
 public:
     SafemodeWebServer(int port = 80);
-    ~SafemodeWebServer();
+    ~SafemodeWebServer() = default;
 
     void setup();
     void loop();
 
+    void rebootAfterTime(long ms);
+
 private:
     WiFiServer wifiServer;
     Application webServer;
+    long rebootAtTime;
     std::array<WiFiClient, SAFEMODE_WEBSERVER_MAX_CLIENTS> clients;
     std::array<long, SAFEMODE_WEBSERVER_MAX_CLIENTS> timeToLive;
 };

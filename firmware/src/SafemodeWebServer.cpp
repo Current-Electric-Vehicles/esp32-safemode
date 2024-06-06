@@ -36,12 +36,9 @@ SafemodeWebServer SAFEMODE_WEBSERVER;
 SafemodeWebServer::SafemodeWebServer(int port):
     wifiServer(80),
     webServer(),
+    rebootAtTime(0),
     clients(),
     timeToLive() {
-    
-}
-
-SafemodeWebServer::~SafemodeWebServer() {
     
 }
 
@@ -77,17 +74,19 @@ void SafemodeWebServer::setup() {
      * Restart
      */
     webServer.post("/api/restart",
-        [](Request &req, Response &res) {
+        [this](Request &req, Response &res) {
             ESP_LOGI(TAG, "API Restart");
+
+            this->rebootAfterTime(5000);
+
             JSON_RESPONSE_OK();
-            ESP.restart();
         });
 
     /**
      * Boot app
      */
     webServer.post("/api/app",
-        [](Request &req, Response &res) {
+        [this](Request &req, Response &res) {
             ESP_LOGI(TAG, "API Boot Into App");
 
             const esp_partition_t* update_partition = esp_partition_find_first(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, "app");
@@ -103,16 +102,16 @@ void SafemodeWebServer::setup() {
                 return;
             }
 
+            this->rebootAfterTime(5000);
+
             JSON_RESPONSE_OK();
-            delay(2000);
-            ESP.restart();
         });
 
     /**
      * OTA Updates
      */
     webServer.post("/api/update",
-        [](Request &req, Response &res) {
+        [this](Request &req, Response &res) {
             ESP_LOGI(TAG, "API OTA Update");
 
             esp_log_level_set(TAG, ESP_LOG_DEBUG);
@@ -181,12 +180,11 @@ void SafemodeWebServer::setup() {
                 JSON_RESPONSE_500();
                 return;
             }
+
+            ESP_LOGI(TAG, "Update successful");
+            this->rebootAfterTime(5000);
             
             JSON_RESPONSE_OK();
-
-            ESP_LOGI(TAG, "Update successful, restarting");
-            delay(2000);
-            ESP.restart();
         });
 
     webServer.options(
@@ -202,7 +200,18 @@ void SafemodeWebServer::setup() {
     wifiServer.begin();
 }
 
+void SafemodeWebServer::rebootAfterTime(long ms) {
+    this->rebootAtTime = millis() + ms;
+}
+
 void SafemodeWebServer::loop() {
+
+  if (this->rebootAtTime > 0 && millis() >= this->rebootAtTime) {
+    ESP_LOGI(TAG, "Rebooting");
+    delay(1000);
+    ESP.restart();
+    this->rebootAtTime = 0;
+  }
 
   if (this->wifiServer.hasClient()) {
     for (int i = 0; i < this->clients.size(); i++) {

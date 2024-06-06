@@ -3,6 +3,14 @@
         "array": "cpp",
         "string": "cpp",
         "string_view": "cpp",
-        "vector": "cpp"
+        "vector": "cpp",
+        "__bit_reference": "cpp",
+        "__hash_table": "cpp",
+        "__split_buffer": "cpp",
+        "deque": "cpp",
+        "initializer_list": "cpp",
+        "span": "cpp",
+        "unordered_map": "cpp",
+        "format": "cpp"
     }
 }
