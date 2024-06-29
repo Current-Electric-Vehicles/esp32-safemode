@@ -26,7 +26,8 @@ function OTAPage() {
     API.otaUpdate(f)
       .then((result) => {
         if (result) {
-          alert("Update successful, device is now rebootiung");
+          alert("Update successful, device is now rebooting");
+          location.replace(`${location.protocol}//${location.host}/?cache-bust=${Math.random()*9999}`);
         } else {
           alert("There was a problem updating the firmware");
         }
@@ -35,13 +36,14 @@ function OTAPage() {
   };
 
   const onBootIntoApp = () => {
-    if (!confirm("Are you sure that you want to cancel?")) {
+    if (!confirm("Are you sure that you want to leave safe mode?")) {
       return;
     }
     API.bootIntoApp()
       .then((result) => {
         if (result) {
-          alert("Device is now rebootiung");
+          alert("Device is now rebooting");
+          location.replace(`${location.protocol}//${location.host}/?cache-bust=${Math.random()*9999}`);
         } else {
           alert("There was a problem rebooting into the app");
         }
@@ -65,7 +67,7 @@ function OTAPage() {
                 </li>
                 <li className={'lastItem'}>
                   <ButtonSolid disabled={!file || uploading} onClick={onBeginUpdate} className={'mt save'}>Update</ButtonSolid>
-                  <ButtonSolid disabled={uploading} onClick={onBootIntoApp} className={'mt cancel'}>Cancel</ButtonSolid>
+                  <ButtonSolid disabled={uploading} onClick={onBootIntoApp} className={'mt cancel'}>Leave Safemode</ButtonSolid>
                 </li>
             </BorderedList>
           </Section>
