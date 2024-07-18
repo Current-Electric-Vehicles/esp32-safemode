@@ -33,175 +33,188 @@ static const char *TAG = "SafemodeWebServer";
 
 SafemodeWebServer SAFEMODE_WEBSERVER;
 
-SafemodeWebServer::SafemodeWebServer(int port):
+SafemodeWebServer::SafemodeWebServer(int port) :
     wifiServer(80),
     webServer(),
     rebootAtTime(0),
     clients(),
     timeToLive() {
-    
+
 }
 
 void SafemodeWebServer::setup() {
 
-    String ssid = "SAFEMODE";
-    String pass = "safemode";
-    ESP_LOGI(TAG, "Bringing up AP: %s, with pasdsword: %s, on http://4.3.2.1", ssid.c_str(), pass.c_str());
+  String ssid = "SAFEMODE";
+  String pass = "safemode";
+  ESP_LOGI(TAG, "Bringing up AP: %s, with password: %s, on http://4.3.2.1", ssid.c_str(), pass.c_str());
 
-    WiFi.persistent(false);
-    WiFi.enableAP(true);
-    WiFi.softAPConfig(IPAddress(4, 3, 2, 1), IPAddress(4, 3, 2, 1), IPAddress(255, 255, 255, 0));
-    WiFi.softAP(ssid, pass);
+  WiFi.persistent(false);
+  WiFi.enableAP(true);
+  WiFi.softAPConfig(IPAddress(4, 3, 2, 1), IPAddress(4, 3, 2, 1), IPAddress(255, 255, 255, 0));
+  WiFi.softAP(ssid, pass);
 
-   webServer.use(
-        [](Request &req, Response &res) {
-            res.set("Connection", "keep-alive");
-            res.set("Access-Control-Allow-Origin", "*");
-            res.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH");
-            res.set("Access-Control-Allow-Headers", "Content-Type, Content-Length, X-File-Size");
-        });
+  dnsServer.start(43, "*", IPAddress(4, 3, 2, 1));
 
-    /**
-     * Ping
-     */
-    webServer.post("/api/ping",
-        [](Request &req, Response &res) {
-            ESP_LOGI(TAG, "API Ping");
-            JSON_RESPONSE_OK();
-        });
+  webServer.use(
+      [](Request &req, Response &res) {
+        res.set("Connection", "keep-alive");
+        res.set("Access-Control-Allow-Origin", "*");
+        res.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH");
+        res.set("Access-Control-Allow-Headers", "Content-Type, Content-Length, X-File-Size");
+      });
 
-    /**
-     * Restart
-     */
-    webServer.post("/api/restart",
-        [this](Request &req, Response &res) {
-            ESP_LOGI(TAG, "API Restart");
+  /**
+   * Ping
+   */
+  webServer.post("/api/ping",
+                 [](Request &req, Response &res) {
+                   ESP_LOGI(TAG, "API Ping");
+                   JSON_RESPONSE_OK();
+                 });
 
-            this->rebootAfterTime(5000);
+  /**
+   * Restart
+   */
+  webServer.post("/api/restart",
+                 [this](Request &req, Response &res) {
+                   ESP_LOGI(TAG, "API Restart");
 
-            JSON_RESPONSE_OK();
-        });
+                   this->rebootAfterTime(5000);
 
-    /**
-     * Boot app
-     */
-    webServer.post("/api/app",
-        [this](Request &req, Response &res) {
-            ESP_LOGI(TAG, "API Boot Into App");
+                   JSON_RESPONSE_OK();
+                 });
 
-            const esp_partition_t* update_partition = esp_partition_find_first(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, "app");
-            if (update_partition == nullptr) {
-                ESP_LOGE(TAG, "Unable to esp_ota_get_next_update_partition");
-                JSON_RESPONSE_500();
-                return;
-            }
+  /**
+   * Boot app
+   */
+  webServer.post("/api/app",
+                 [this](Request &req, Response &res) {
+                   ESP_LOGI(TAG, "API Boot Into App");
 
-            if (esp_ota_set_boot_partition(update_partition) != ESP_OK) {
-                ESP_LOGE(TAG, "Unable to esp_ota_set_boot_partition");
-                JSON_RESPONSE_500();
-                return;
-            }
+                   const esp_partition_t *update_partition = esp_partition_find_first(ESP_PARTITION_TYPE_ANY,
+                                                                                      ESP_PARTITION_SUBTYPE_ANY, "app");
+                   if (update_partition == nullptr) {
+                     ESP_LOGE(TAG, "Unable to esp_ota_get_next_update_partition");
+                     JSON_RESPONSE_500();
+                     return;
+                   }
 
-            this->rebootAfterTime(5000);
+                   if (esp_ota_set_boot_partition(update_partition) != ESP_OK) {
+                     ESP_LOGE(TAG, "Unable to esp_ota_set_boot_partition");
+                     JSON_RESPONSE_500();
+                     return;
+                   }
 
-            JSON_RESPONSE_OK();
-        });
+                   this->rebootAfterTime(5000);
 
-    /**
-     * OTA Updates
-     */
-    webServer.post("/api/update",
-        [this](Request &req, Response &res) {
-            ESP_LOGI(TAG, "API OTA Update");
+                   JSON_RESPONSE_OK();
+                 });
 
-            esp_log_level_set(TAG, ESP_LOG_DEBUG);
+  /**
+   * OTA Updates
+   */
+  webServer.post("/api/update",
+                 [this](Request &req, Response &res) {
+                   ESP_LOGI(TAG, "API OTA Update");
 
-            req.setTimeout(10000);
-\
-            const esp_partition_t* update_partition = esp_partition_find_first(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, "app");
-            if (update_partition == nullptr) {
-                ESP_LOGE(TAG, "Unable to find partition with label 'app'");
-                JSON_RESPONSE_500();
-                return;
-            }
+                   esp_log_level_set(TAG, ESP_LOG_DEBUG);
 
-            esp_flash_t* flash = update_partition->flash_chip;
-            const uint32_t partAddr = update_partition->address;
-            const uint32_t partSize = update_partition->size;
-            const size_t sectorSize = flash->chip_drv->sector_size;
-            uint8_t readBuffer[sectorSize];
+                   req.setTimeout(10000);
+                   \
+            const esp_partition_t *update_partition = esp_partition_find_first(ESP_PARTITION_TYPE_ANY,
+                                                                               ESP_PARTITION_SUBTYPE_ANY, "app");
+                   if (update_partition == nullptr) {
+                     ESP_LOGE(TAG, "Unable to find partition with label 'app'");
+                     JSON_RESPONSE_500();
+                     return;
+                   }
 
-            ESP_LOGD(TAG, "Found app partition with offset: 0x%x and size: %d", partAddr, partSize);
+                   esp_flash_t *flash = update_partition->flash_chip;
+                   const uint32_t partAddr = update_partition->address;
+                   const uint32_t partSize = update_partition->size;
+                   const size_t sectorSize = flash->chip_drv->sector_size;
+                   uint8_t readBuffer[sectorSize];
 
-            esp_ota_handle_t update_handle;
-            if (esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &update_handle) != ESP_OK) {
-                ESP_LOGE(TAG, "Unable to esp_ota_begin");
-                JSON_RESPONSE_500();
-                return;
-            }
+                   ESP_LOGD(TAG, "Found app partition with offset: 0x%x and size: %d", partAddr, partSize);
 
-            ESP_LOGI(TAG, "Beginning writes at: 0x%x for OTA update", partAddr);
+                   esp_ota_handle_t update_handle;
+                   if (esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &update_handle) != ESP_OK) {
+                     ESP_LOGE(TAG, "Unable to esp_ota_begin");
+                     JSON_RESPONSE_500();
+                     return;
+                   }
 
-            uint32_t totalBytesRead = 0;
-            for (uint32_t addr = partAddr; addr < (partAddr + partSize); addr += sectorSize) {
+                   ESP_LOGI(TAG, "Beginning writes at: 0x%x for OTA update", partAddr);
 
-                if (esp_flash_read(flash, &readBuffer[0], addr, sectorSize) != ESP_OK) {
-                    ESP_LOGE(TAG, "Unable to esp_flash_read");
-                    JSON_RESPONSE_500();
-                    return;
-                }
+                   uint32_t totalBytesRead = 0;
+                   for (uint32_t addr = partAddr; addr < (partAddr + partSize); addr += sectorSize) {
 
-                uint32_t readBufferLen = min(sectorSize, partSize - (addr - partAddr));
+                     if (esp_flash_read(flash, &readBuffer[0], addr, sectorSize) != ESP_OK) {
+                       ESP_LOGE(TAG, "Unable to esp_flash_read");
+                       JSON_RESPONSE_500();
+                       return;
+                     }
 
-                int chunkBytesRead = 0;
-                while (chunkBytesRead < readBufferLen && req.left()) {
-                    int read = req.read(&readBuffer[0] + chunkBytesRead, readBufferLen - chunkBytesRead);
-                    if (read == -1) {
-                        continue;
-                    }
-                    chunkBytesRead += read;
-                }
+                     uint32_t readBufferLen = min(sectorSize, partSize - (addr - partAddr));
 
-                if (esp_flash_erase_region(flash, addr, sectorSize) != ESP_OK) {
-                    ESP_LOGE(TAG, "Unable to esp_flash_erase_region");
-                    JSON_RESPONSE_500();
-                    return;
-                }
+                     int chunkBytesRead = 0;
+                     while (chunkBytesRead < readBufferLen && req.left()) {
+                       int read = req.read(&readBuffer[0] + chunkBytesRead, readBufferLen - chunkBytesRead);
+                       if (read == -1) {
+                         continue;
+                       }
+                       chunkBytesRead += read;
+                     }
 
-                if (esp_flash_write(flash, &readBuffer[0], addr, sectorSize) != ESP_OK) {
-                    ESP_LOGE(TAG, "Unable to esp_flash_write");
-                    JSON_RESPONSE_500();
-                    return;
-                }
-            }
+                     if (esp_flash_erase_region(flash, addr, sectorSize) != ESP_OK) {
+                       ESP_LOGE(TAG, "Unable to esp_flash_erase_region");
+                       JSON_RESPONSE_500();
+                       return;
+                     }
 
-            if (esp_ota_set_boot_partition(update_partition) != ESP_OK) {
-                ESP_LOGE(TAG, "Unable to esp_ota_set_boot_partition");
-                JSON_RESPONSE_500();
-                return;
-            }
+                     if (esp_flash_write(flash, &readBuffer[0], addr, sectorSize) != ESP_OK) {
+                       ESP_LOGE(TAG, "Unable to esp_flash_write");
+                       JSON_RESPONSE_500();
+                       return;
+                     }
+                   }
 
-            ESP_LOGI(TAG, "Update successful");
-            this->rebootAfterTime(5000);
-            
-            JSON_RESPONSE_OK();
-        });
+                   if (esp_ota_set_boot_partition(update_partition) != ESP_OK) {
+                     ESP_LOGE(TAG, "Unable to esp_ota_set_boot_partition");
+                     JSON_RESPONSE_500();
+                     return;
+                   }
 
-    webServer.options(
-        [](Request &req, Response &res) {
-            JSON_RESPONSE_OK();
-        });
+                   ESP_LOGI(TAG, "Update successful");
+                   this->rebootAfterTime(5000);
 
-    webServer.use(staticFiles());
+                   JSON_RESPONSE_OK();
+                 });
 
-    /**
-     * Start the server
-     */
-    wifiServer.begin();
+  webServer.options(
+      [](Request &req, Response &res) {
+        JSON_RESPONSE_OK();
+      });
+
+  webServer.use(staticFiles());
+
+  webServer.use(
+      [](Request &req, Response &res) {
+        res.status(302);
+        res.set("Location", "/");
+        res.set("Content-Type", "text/plain");
+        res.print("Redirecting to captive portal");
+        res.end();
+      });
+
+  /**
+   * Start the server
+   */
+  wifiServer.begin();
 }
 
 void SafemodeWebServer::rebootAfterTime(long ms) {
-    this->rebootAtTime = millis() + ms;
+  this->rebootAtTime = millis() + ms;
 }
 
 void SafemodeWebServer::loop() {
@@ -213,11 +226,13 @@ void SafemodeWebServer::loop() {
     this->rebootAtTime = 0;
   }
 
+  dnsServer.processNextRequest();
+
   if (this->wifiServer.hasClient()) {
     for (int i = 0; i < this->clients.size(); i++) {
       if (!this->clients[i].connected()) {
         this->clients[i] = this->wifiServer.available();
-        this->timeToLive[i] = millis() +  SAFEMODE_WEBSERVER_MAX_IDLE;
+        this->timeToLive[i] = millis() + SAFEMODE_WEBSERVER_MAX_IDLE;
         break;
       }
     }
@@ -226,7 +241,7 @@ void SafemodeWebServer::loop() {
   for (int i = 0; i < this->clients.size(); i++) {
     if (this->clients[i].available()) {
       this->webServer.process(&this->clients[i]);
-      this->timeToLive[i] = millis() +  SAFEMODE_WEBSERVER_MAX_IDLE;
+      this->timeToLive[i] = millis() + SAFEMODE_WEBSERVER_MAX_IDLE;
     } else if (this->timeToLive[i] && this->timeToLive[i] < millis()) {
       this->clients[i].stop();
       this->timeToLive[i] = 0;

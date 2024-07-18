@@ -3,6 +3,7 @@
 #define SAFEMODE_WEBSERVER_H
 
 #include <WiFi.h>
+#include <DNSServer.h>
 #include <aWOT.h>
 #include <array>
 
@@ -20,6 +21,7 @@ public:
     void rebootAfterTime(long ms);
 
 private:
+    DNSServer dnsServer;
     WiFiServer wifiServer;
     Application webServer;
     long rebootAtTime;

@@ -2,3 +2,4 @@
 data/www/*
 include/StaticFiles.h
 build/
+.idea/
