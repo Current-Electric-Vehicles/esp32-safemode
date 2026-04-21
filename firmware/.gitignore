@@ -1,5 +1,6 @@
-.pio
-data/www/*
-include/StaticFiles.h
 build/
+build-release/
+sdkconfig
+sdkconfig.old
+managed_components/
 .idea/
