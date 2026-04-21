@@ -1,0 +1,9 @@
+idf_component_register(
+    SRCS
+        "src/ota_updater.cpp"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        esp_ota_ops
+        esp_partition
+)
