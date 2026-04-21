@@ -4,3 +4,6 @@ sdkconfig
 sdkconfig.old
 managed_components/
 .idea/
+components/wifi/web/
+components/wifi/src/web_assets.h
+components/wifi/web_assets.cmake

@@ -42,4 +42,6 @@ idf_component_register(
         esp_http_server
     PRIV_REQUIRES
         ota
+        esp_timer
+        app_update
 )
