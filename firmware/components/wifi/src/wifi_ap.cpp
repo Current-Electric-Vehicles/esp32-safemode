@@ -35,9 +35,11 @@ esp_err_t WifiAp::start()
     // Restart DHCP server with new IP range
     ESP_RETURN_ON_ERROR(esp_netif_dhcps_start(ap_netif), kTag, "dhcps start");
 
-    // Initialize WiFi driver
+    // Initialize WiFi driver — use RAM storage so NVS is not required
+    // (safemode runs on other devices whose NVS may not be available)
     wifi_init_config_t wifiInitConfig = WIFI_INIT_CONFIG_DEFAULT();
     ESP_RETURN_ON_ERROR(esp_wifi_init(&wifiInitConfig), kTag, "wifi init");
+    ESP_RETURN_ON_ERROR(esp_wifi_set_storage(WIFI_STORAGE_RAM), kTag, "wifi storage");
 
     // Configure AP
     wifi_config_t wifiConfig = {};

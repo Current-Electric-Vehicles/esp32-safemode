@@ -4,6 +4,7 @@ idf_component_register(
     REQUIRES
         wifi
         ota
+        partition_scan
     PRIV_REQUIRES
         nvs_flash
         esp_timer

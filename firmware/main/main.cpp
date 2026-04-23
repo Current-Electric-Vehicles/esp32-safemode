@@ -3,6 +3,7 @@
 #include "http_server.h"
 #include "nvs_flash.h"
 #include "ota_updater.h"
+#include "partition_scan.h"
 #include "wifi_ap.h"
 
 static constexpr const char* kTag = "safemode";
@@ -21,13 +22,28 @@ extern "C" void app_main()
     esp_log_level_set("wifi_init", ESP_LOG_WARN);
     esp_log_level_set("esp_netif_lwip", ESP_LOG_WARN);
 
-    // Initialize NVS
+    // Initialize NVS — try the standard path first, then fall back to
+    // scanning flash for the partition table (handles devices whose
+    // partition table is at a non-standard offset).
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
     {
         ESP_LOGW(kTag, "NVS partition truncated, erasing...");
         nvs_flash_erase();
         ret = nvs_flash_init();
+    }
+    if (ret == ESP_ERR_NOT_FOUND)
+    {
+        ESP_LOGW(kTag, "NVS partition not found at compiled-in offset, scanning flash...");
+        if (safemode::scanAndRegisterPartitions() == ESP_OK)
+        {
+            ret = nvs_flash_init();
+            if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
+            {
+                nvs_flash_erase();
+                ret = nvs_flash_init();
+            }
+        }
     }
     if (ret != ESP_OK)
     {

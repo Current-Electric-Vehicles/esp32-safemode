@@ -2,6 +2,8 @@
 
 #include "esp_log.h"
 
+#include <cstring>
+
 namespace safemode
 {
 
@@ -21,10 +23,34 @@ esp_err_t OtaUpdater::begin()
         return ESP_ERR_INVALID_STATE;
     }
 
-    partition_ = esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, kAppPartitionLabel);
+    if (targetPartition_ != nullptr)
+    {
+        partition_ = targetPartition_;
+    }
+    else
+    {
+        // Find the first app partition not labeled "safemode"
+        esp_partition_iterator_t it = esp_partition_find(
+            ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, nullptr);
+        while (it != nullptr)
+        {
+            const esp_partition_t* p = esp_partition_get(it);
+            if (strcmp(p->label, "safemode") != 0)
+            {
+                partition_ = p;
+                break;
+            }
+            it = esp_partition_next(it);
+        }
+        if (it != nullptr)
+        {
+            esp_partition_iterator_release(it);
+        }
+    }
+
     if (partition_ == nullptr)
     {
-        ESP_LOGE(kTag, "Could not find partition '%s'", kAppPartitionLabel);
+        ESP_LOGE(kTag, "No target app partition found");
         return ESP_ERR_NOT_FOUND;
     }
 

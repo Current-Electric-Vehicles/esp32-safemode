@@ -1,0 +1,10 @@
+idf_component_register(
+    SRCS
+        "src/partition_scan.cpp"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        spi_flash
+        esp_partition
+        bootloader_support
+)

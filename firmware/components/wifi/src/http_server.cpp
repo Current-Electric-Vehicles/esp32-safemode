@@ -32,6 +32,7 @@ esp_err_t HttpServer::start(uint16_t port)
     config.lru_purge_enable = true;
     config.uri_match_fn = httpd_uri_match_wildcard;
     config.max_uri_handlers = 16;
+    config.max_open_sockets = 4;
     config.recv_wait_timeout = 30;
 
     ESP_LOGI(kTag, "Starting HTTP server on port %d", port);

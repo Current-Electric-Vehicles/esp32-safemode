@@ -2,3 +2,6 @@
 *.swp
 *.swo
 *~
+firmware/.cache
+*/__pycache__/*
+firmware/frontend/tsconfig.tsbuildinfo

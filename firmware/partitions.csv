@@ -1,10 +1,9 @@
 # bootloader = 0x1000
 # partition table = 0x10000
-# firmware = 0x20000
 
 # Name,     Type,     SubType,  Offset,     Size,       Flags
 nvs,        data,   nvs,        0x11000,    0xD000,
-otadata,    data,   ota,        0x1E000,    0x2000,
-safemode,   app,    ota_0,      0x20000,    0x1B0000,
-app,        app,    ota_1,      0x1D0000,   0x1B0000,
-spiffs,     data,   spiffs,     0x380000,   0x7A120,
+otadata,    data,   ota,        0x1e000,    0x2000,
+app,        app,    ota_0,      0x20000,    0x310000,    encrypted
+safemode,   app,    ota_1,      0x330000,   0xe0000,     encrypted
+spiffs,     data,   spiffs,     0x410000,   0x3F0000,
