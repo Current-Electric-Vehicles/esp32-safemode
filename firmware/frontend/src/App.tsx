@@ -4,6 +4,7 @@ import {
   restart,
   bootIntoApp,
   uploadFirmware,
+  factoryReset,
   getInfo,
   type DeviceInfo,
 } from "./api";
@@ -29,6 +30,7 @@ export default function App() {
   } | null>(null);
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
   const [showInfo, setShowInfo] = useState(false);
+  const [showRebootOptions, setShowRebootOptions] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Poll connectivity
@@ -97,6 +99,22 @@ export default function App() {
     }
   }, []);
 
+  const handleFactoryReset = useCallback(async () => {
+    if (!confirm("This will erase all device settings. Continue?")) return;
+    setMessage(null);
+    try {
+      const ok = await factoryReset();
+      if (ok) {
+        setMessage({ text: "Factory reset complete.", type: "success" });
+        setShowRebootOptions(true);
+      } else {
+        setMessage({ text: "Factory reset failed.", type: "error" });
+      }
+    } catch {
+      setMessage({ text: "Factory reset error. Check your connection.", type: "error" });
+    }
+  }, []);
+
   return (
     <div className="mx-auto flex min-h-dvh max-w-lg flex-col px-4 py-6">
       {/* Header */}
@@ -118,6 +136,24 @@ export default function App() {
           }`}
         >
           {message.text}
+        </div>
+      )}
+
+      {/* Post-reset reboot options */}
+      {showRebootOptions && (
+        <div className="mb-4 flex gap-3">
+          <button
+            onClick={async () => { setShowRebootOptions(false); await bootIntoApp(); setMessage({ text: "Rebooting into app...", type: "success" }); }}
+            className="flex-1 rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-orange-400"
+          >
+            Reboot into App
+          </button>
+          <button
+            onClick={async () => { setShowRebootOptions(false); await restart(); setMessage({ text: "Restarting in safemode...", type: "success" }); }}
+            className="flex-1 rounded-lg bg-stone-700 px-4 py-2.5 text-sm font-medium text-stone-200 transition-colors hover:bg-stone-600"
+          >
+            Stay in Safemode
+          </button>
         </div>
       )}
 
@@ -180,6 +216,15 @@ export default function App() {
             Restart
           </button>
         </div>
+        {deviceInfo?.factoryResetEnabled && (
+          <button
+            onClick={handleFactoryReset}
+            disabled={uploading || !connected}
+            className="mt-3 w-full rounded-lg bg-red-900/50 px-4 py-2.5 text-sm font-medium text-red-300 transition-colors hover:bg-red-900/70 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Factory Reset
+          </button>
+        )}
       </section>
 
       {/* Device Info */}

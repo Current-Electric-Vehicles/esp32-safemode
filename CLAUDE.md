@@ -4,9 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ESP32 "safemode" firmware — a captive-portal recovery partition that lets users OTA-flash new application firmware over WiFi. The device exposes an AP ("SAFEMODE"), redirects all DNS to itself, and serves a React-based upload UI.
+ESP32 "safemode" firmware — a recovery partition that lets users OTA-flash new application firmware over WiFi. The device exposes an AP ("SAFEMODE") and serves a React-based upload UI.
 
-Two-partition boot scheme: `safemode` (ota_0) is the always-present recovery image; `app` (ota_1) is the main application. The safemode firmware writes new binaries to the `app` partition via ESP-IDF OTA APIs and reboots into it.
+Two-partition boot scheme: `app` (ota_0) is the main application; `safemode` (ota_1) is the always-present recovery image. The safemode firmware writes new binaries to the `app` partition and reboots into it.
+
+Designed to run on arbitrary ESP32 devices — auto-discovers the partition table at runtime and supports flash encryption (pre-encrypted `.enc.bin` uploads).
 
 ## Hardware
 
@@ -41,6 +43,9 @@ python scripts/monitor.py
 # Clean build artifacts
 python scripts/clean.py
 
+# Clean everything (all builds, caches, generated files)
+python scripts/clean.py --all
+
 # ESP-IDF menuconfig
 python scripts/menuconfig.py
 
@@ -60,12 +65,13 @@ Pure ESP-IDF 6.0, C++20, `safemode::` namespace. No Arduino, no PlatformIO.
 
 ### Components
 
-- **`components/ota/`** — `OtaUpdater` class: streaming OTA via `esp_ota_begin/write/end`. Finds "app" partition by label.
-- **`components/wifi/`** — WiFi AP (`WifiAp`), DNS captive portal (`dnsServerStart/Stop`), HTTP server (`HttpServer`) with REST API + embedded web assets.
+- **`components/ota/`** — `OtaUpdater` class: streaming OTA with separate paths for plaintext (`esp_ota_write`) and pre-encrypted (`esp_partition_write_raw`) binaries. Finds first app partition not labeled "safemode".
+- **`components/wifi/`** — WiFi AP (`WifiAp`, RAM-only storage), HTTP server (`HttpServer`) with REST API + embedded web assets.
+- **`components/partition_scan/`** — Runtime partition table discovery. Scans flash for the partition table if the compiled-in offset doesn't match, handles encrypted flash reads, registers found partitions via `esp_partition_register_external()`.
 
 ### main/main.cpp
 
-Wires everything: NVS init, WiFi AP start (SSID "SAFEMODE", pass "safemode", IP 4.3.2.1), DNS server start, OTA updater + HTTP server start, idle loop.
+Wires everything: NVS init (with partition scan fallback), WiFi AP start (SSID "SAFEMODE", pass "safemode", IP 4.3.2.1), OTA updater + HTTP server start, idle loop.
 
 ### API Endpoints
 
@@ -82,13 +88,15 @@ React 19 + Tailwind CSS v4 + Vite 8 + TypeScript. Located at `firmware/frontend/
 
 ### Flash Partition Layout
 
-| Name     | Type | Offset     | Size    |
-|----------|------|------------|---------|
-| nvs      | data | 0x11000    | 52KB    |
-| otadata  | data | 0x1E000    | 8KB     |
-| safemode | app  | 0x20000    | 1.7MB   |
-| app      | app  | 0x1D0000   | 1.7MB   |
-| spiffs   | data | 0x380000   | 488KB   |
+Partition table at offset `0x10000`. Configured in `firmware/partitions.csv`.
+
+| Name     | Type | SubType | Offset   | Size   | Flags     |
+|----------|------|---------|----------|--------|-----------|
+| nvs      | data | nvs     | 0x11000  | 52KB   |           |
+| otadata  | data | ota     | 0x1E000  | 8KB    |           |
+| app      | app  | ota_0   | 0x20000  | 3.06MB | encrypted |
+| safemode | app  | ota_1   | 0x330000 | 896KB  | encrypted |
+| spiffs   | data | spiffs  | 0x410000 | 3.9MB  |           |
 
 ## Code Style
 

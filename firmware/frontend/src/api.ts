@@ -7,6 +7,7 @@ export interface DeviceInfo {
   runningPartition: string;
   appPartition: string;
   firmwareVersion: string;
+  factoryResetEnabled: boolean;
 }
 
 function apiUrl(path: string): string {
@@ -34,6 +35,12 @@ export async function restart(): Promise<boolean> {
 
 export async function bootIntoApp(): Promise<boolean> {
   const res = await fetch(apiUrl("/api/app"), { method: "POST" });
+  const json = await res.json();
+  return json.result === true;
+}
+
+export async function factoryReset(): Promise<boolean> {
+  const res = await fetch(apiUrl("/api/factory-reset"), { method: "POST" });
   const json = await res.json();
   return json.result === true;
 }

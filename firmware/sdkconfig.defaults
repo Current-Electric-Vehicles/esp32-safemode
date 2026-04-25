@@ -9,6 +9,7 @@ CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
 # Custom partition table
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_PARTITION_TABLE_OFFSET=0x10000
 
 # Tolerate partition tables without MD5 (safemode runs on other devices)
 CONFIG_PARTITION_TABLE_MD5=n
