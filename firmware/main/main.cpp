@@ -1,4 +1,3 @@
-#include "dns_server.h"
 #include "esp_log.h"
 #include "http_server.h"
 #include "nvs_flash.h"
@@ -22,33 +21,30 @@ extern "C" void app_main()
     esp_log_level_set("wifi_init", ESP_LOG_WARN);
     esp_log_level_set("esp_netif_lwip", ESP_LOG_WARN);
 
-    // Initialize NVS — try the standard path first, then fall back to
-    // scanning flash for the partition table (handles devices whose
-    // partition table is at a non-standard offset).
-    esp_err_t ret = nvs_flash_init();
+    // Always scan flash for partition table — safemode is partition-agnostic.
+    esp_err_t ret = safemode::scanAndRegisterPartitions();
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(kTag, "Failed to discover partitions — cannot continue");
+        return;
+    }
+
+    // Initialize NVS (best-effort — WiFi uses RAM-only storage as fallback)
+    bool nvsAvailable = false;
+    ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
     {
-        ESP_LOGW(kTag, "NVS partition truncated, erasing...");
+        ESP_LOGW(kTag, "NVS partition needs erase...");
         nvs_flash_erase();
         ret = nvs_flash_init();
     }
-    if (ret == ESP_ERR_NOT_FOUND)
+    if (ret == ESP_OK)
     {
-        ESP_LOGW(kTag, "NVS partition not found at compiled-in offset, scanning flash...");
-        if (safemode::scanAndRegisterPartitions() == ESP_OK)
-        {
-            ret = nvs_flash_init();
-            if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
-            {
-                nvs_flash_erase();
-                ret = nvs_flash_init();
-            }
-        }
+        nvsAvailable = true;
     }
-    if (ret != ESP_OK)
+    else
     {
-        ESP_LOGE(kTag, "Failed to initialize NVS: %s", esp_err_to_name(ret));
-        return;
+        ESP_LOGW(kTag, "NVS unavailable (%s), continuing without it", esp_err_to_name(ret));
     }
 
     // Start WiFi AP
@@ -59,19 +55,13 @@ extern "C" void app_main()
         return;
     }
 
-    // Start DNS server (captive portal)
-    ret = safemode::dnsServerStart();
-    if (ret != ESP_OK)
-    {
-        ESP_LOGE(kTag, "Failed to start DNS server: %s", esp_err_to_name(ret));
-    }
-
     // Create OTA updater
     safemode::OtaUpdater otaUpdater;
 
     // Start HTTP server
     safemode::HttpServer httpServer;
     httpServer.setOtaUpdater(&otaUpdater);
+    httpServer.setNvsAvailable(nvsAvailable);
 
     ret = httpServer.start();
     if (ret != ESP_OK)

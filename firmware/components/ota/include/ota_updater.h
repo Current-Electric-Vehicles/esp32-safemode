@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esp_err.h"
-#include "esp_ota_ops.h"
 #include "esp_partition.h"
 
 namespace safemode
@@ -20,16 +19,16 @@ public:
     /// search for the first app partition not labeled "safemode".
     void setTargetPartition(const esp_partition_t* partition) { targetPartition_ = partition; }
 
-    /// Begin an OTA update. Uses the target partition (if set) or finds one.
+    /// Begin an OTA update. Erases the target partition.
     esp_err_t begin();
 
     /// Write a chunk of firmware data.
     esp_err_t write(const void* data, size_t len);
 
-    /// Finish the update. Calls esp_ota_end() and sets the boot partition.
+    /// Finish the update. Sets the boot partition.
     esp_err_t finish();
 
-    /// Abort an in-progress update and clean up.
+    /// Abort an in-progress update.
     void abort();
 
     /// Returns true if an update is in progress.
@@ -40,8 +39,9 @@ private:
 
     const esp_partition_t* targetPartition_ = nullptr;
     const esp_partition_t* partition_ = nullptr;
-    esp_ota_handle_t handle_ = 0;
     bool active_ = false;
+    bool encrypted_ = false;
+    size_t writeOffset_ = 0;
 };
 
 }  // namespace safemode

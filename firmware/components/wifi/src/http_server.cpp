@@ -6,6 +6,7 @@
 #include "esp_ota_ops.h"
 #include "esp_system.h"
 #include "esp_timer.h"
+#include "factory_reset.h"
 #include "ota_updater.h"
 #include "web_assets.h"
 
@@ -33,6 +34,7 @@ esp_err_t HttpServer::start(uint16_t port)
     config.uri_match_fn = httpd_uri_match_wildcard;
     config.max_uri_handlers = 16;
     config.max_open_sockets = 4;
+    config.stack_size = 8192;
     config.recv_wait_timeout = 30;
 
     ESP_LOGI(kTag, "Starting HTTP server on port %d", port);
@@ -174,6 +176,13 @@ void HttpServer::registerRoutes()
     info.user_ctx = this;
     httpd_register_uri_handler(handle_, &info);
 
+    httpd_uri_t factoryReset = {};
+    factoryReset.uri = "/api/factory-reset";
+    factoryReset.method = HTTP_POST;
+    factoryReset.handler = handleFactoryReset;
+    factoryReset.user_ctx = this;
+    httpd_register_uri_handler(handle_, &factoryReset);
+
     // SPA fallback (must be last — wildcard)
     httpd_uri_t fallback = {};
     fallback.uri = "/*";
@@ -259,11 +268,27 @@ esp_err_t HttpServer::handleBootApp(httpd_req_t* req)
     auto* server = static_cast<HttpServer*>(req->user_ctx);
     setCorsHeaders(req);
 
-    const esp_partition_t* appPartition =
-        esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, "app");
+    const esp_partition_t* appPartition = nullptr;
+    esp_partition_iterator_t it = esp_partition_find(
+        ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, nullptr);
+    while (it != nullptr)
+    {
+        const esp_partition_t* p = esp_partition_get(it);
+        if (strcmp(p->label, "safemode") != 0)
+        {
+            appPartition = p;
+            break;
+        }
+        it = esp_partition_next(it);
+    }
+    if (it != nullptr)
+    {
+        esp_partition_iterator_release(it);
+    }
+
     if (appPartition == nullptr)
     {
-        ESP_LOGE(kTag, "Could not find 'app' partition");
+        ESP_LOGE(kTag, "No app partition found");
         sendJsonError(req, 500);
         return ESP_OK;
     }
@@ -300,7 +325,7 @@ esp_err_t HttpServer::handleUpdate(httpd_req_t* req)
         return ESP_OK;
     }
 
-    char buf[4096];
+    char buf[1024];
     int remaining = req->content_len;
     int received = 0;
 
@@ -348,6 +373,7 @@ esp_err_t HttpServer::handleUpdate(httpd_req_t* req)
 esp_err_t HttpServer::handleInfo(httpd_req_t* req)
 {
     ESP_LOGI(kTag, "API: info");
+    auto* server = static_cast<HttpServer*>(req->user_ctx);
     setCorsHeaders(req);
 
     esp_chip_info_t chipInfo;
@@ -355,8 +381,26 @@ esp_err_t HttpServer::handleInfo(httpd_req_t* req)
 
     const esp_app_desc_t* appDesc = esp_app_get_description();
     const esp_partition_t* running = esp_ota_get_running_partition();
-    const esp_partition_t* appPartition =
-        esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, "app");
+
+    const char* appLabel = "none";
+    esp_partition_iterator_t it = esp_partition_find(
+        ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, nullptr);
+    while (it != nullptr)
+    {
+        const esp_partition_t* p = esp_partition_get(it);
+        if (strcmp(p->label, "safemode") != 0)
+        {
+            appLabel = p->label;
+            break;
+        }
+        it = esp_partition_next(it);
+    }
+    if (it != nullptr)
+    {
+        esp_partition_iterator_release(it);
+    }
+
+    bool factoryResetEnabled = server->nvsAvailable_ && safemode::isFactoryResetEnabled();
 
     char json[512];
     int len = snprintf(json, sizeof(json),
@@ -368,7 +412,8 @@ esp_err_t HttpServer::handleInfo(httpd_req_t* req)
         "\"freeHeap\":%lu,"
         "\"runningPartition\":\"%s\","
         "\"appPartition\":\"%s\","
-        "\"firmwareVersion\":\"%s\""
+        "\"firmwareVersion\":\"%s\","
+        "\"factoryResetEnabled\":%s"
         "}",
         CONFIG_IDF_TARGET,
         chipInfo.revision,
@@ -376,12 +421,37 @@ esp_err_t HttpServer::handleInfo(httpd_req_t* req)
         esp_get_idf_version(),
         esp_get_free_heap_size(),
         running ? running->label : "unknown",
-        appPartition ? appPartition->label : "none",
-        appDesc ? appDesc->version : "unknown"
+        appLabel,
+        appDesc ? appDesc->version : "unknown",
+        factoryResetEnabled ? "true" : "false"
     );
 
     httpd_resp_set_type(req, "application/json");
     httpd_resp_send(req, json, len);
+    return ESP_OK;
+}
+
+esp_err_t HttpServer::handleFactoryReset(httpd_req_t* req)
+{
+    ESP_LOGI(kTag, "API: factory reset");
+    auto* server = static_cast<HttpServer*>(req->user_ctx);
+    setCorsHeaders(req);
+
+    if (!server->nvsAvailable_ || !safemode::isFactoryResetEnabled())
+    {
+        ESP_LOGW(kTag, "Factory reset not available");
+        sendJsonError(req, 400);
+        return ESP_OK;
+    }
+
+    esp_err_t ret = safemode::performFactoryReset();
+    if (ret != ESP_OK)
+    {
+        sendJsonError(req, 500);
+        return ESP_OK;
+    }
+
+    sendJsonOk(req);
     return ESP_OK;
 }
 

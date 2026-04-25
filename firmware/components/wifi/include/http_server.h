@@ -18,13 +18,13 @@ public:
     HttpServer& operator=(const HttpServer&) = delete;
 
     void setOtaUpdater(OtaUpdater* ota) { ota_ = ota; }
+    void setNvsAvailable(bool available) { nvsAvailable_ = available; }
 
     esp_err_t start(uint16_t port = 80);
     esp_err_t stop();
 
     bool isRunning() const { return handle_ != nullptr; }
 
-    /// Schedule a reboot after the given number of milliseconds.
     void scheduleReboot(uint32_t delayMs);
 
 private:
@@ -33,25 +33,23 @@ private:
 
     httpd_handle_t handle_ = nullptr;
     OtaUpdater* ota_ = nullptr;
+    bool nvsAvailable_ = false;
 
     void registerRoutes();
 
-    // CORS
     static void setCorsHeaders(httpd_req_t* req);
     static esp_err_t handleOptions(httpd_req_t* req);
 
-    // Static file serving
     static esp_err_t handleStaticFile(httpd_req_t* req);
     static esp_err_t handleSpaFallback(httpd_req_t* req);
 
-    // API handlers
     static esp_err_t handlePing(httpd_req_t* req);
     static esp_err_t handleRestart(httpd_req_t* req);
     static esp_err_t handleBootApp(httpd_req_t* req);
     static esp_err_t handleUpdate(httpd_req_t* req);
     static esp_err_t handleInfo(httpd_req_t* req);
+    static esp_err_t handleFactoryReset(httpd_req_t* req);
 
-    // Helpers
     static void sendJsonOk(httpd_req_t* req);
     static void sendJsonError(httpd_req_t* req, int status);
 

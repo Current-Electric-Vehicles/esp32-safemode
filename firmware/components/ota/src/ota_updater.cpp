@@ -1,6 +1,7 @@
 #include "ota_updater.h"
 
 #include "esp_log.h"
+#include "esp_ota_ops.h"
 
 #include <cstring>
 
@@ -54,18 +55,20 @@ esp_err_t OtaUpdater::begin()
         return ESP_ERR_NOT_FOUND;
     }
 
-    ESP_LOGI(kTag, "Starting OTA update to partition '%s' @ 0x%lx (%lu bytes)",
-             partition_->label, partition_->address, partition_->size);
+    encrypted_ = partition_->encrypted;
+    ESP_LOGI(kTag, "Starting OTA update to partition '%s' @ 0x%lx (%lu bytes, encrypted=%d)",
+             partition_->label, partition_->address, partition_->size, encrypted_);
 
-    esp_err_t ret = esp_ota_begin(partition_, OTA_SIZE_UNKNOWN, &handle_);
+    esp_err_t ret = esp_partition_erase_range(partition_, 0, partition_->size);
     if (ret != ESP_OK)
     {
-        ESP_LOGE(kTag, "esp_ota_begin failed: %s", esp_err_to_name(ret));
+        ESP_LOGE(kTag, "Partition erase failed: %s", esp_err_to_name(ret));
         partition_ = nullptr;
         return ret;
     }
 
     active_ = true;
+    writeOffset_ = 0;
     return ESP_OK;
 }
 
@@ -76,14 +79,23 @@ esp_err_t OtaUpdater::write(const void* data, size_t len)
         return ESP_ERR_INVALID_STATE;
     }
 
-    esp_err_t ret = esp_ota_write(handle_, data, len);
+    esp_err_t ret;
+    if (encrypted_)
+    {
+        ret = esp_partition_write_raw(partition_, writeOffset_, data, len);
+    }
+    else
+    {
+        ret = esp_partition_write(partition_, writeOffset_, data, len);
+    }
+
     if (ret != ESP_OK)
     {
-        ESP_LOGE(kTag, "esp_ota_write failed: %s", esp_err_to_name(ret));
+        ESP_LOGE(kTag, "OTA write failed at offset %u: %s", (unsigned)writeOffset_, esp_err_to_name(ret));
         abort();
         return ret;
     }
-
+    writeOffset_ += len;
     return ESP_OK;
 }
 
@@ -94,15 +106,9 @@ esp_err_t OtaUpdater::finish()
         return ESP_ERR_INVALID_STATE;
     }
 
-    esp_err_t ret = esp_ota_end(handle_);
-    if (ret != ESP_OK)
-    {
-        ESP_LOGE(kTag, "esp_ota_end failed: %s", esp_err_to_name(ret));
-        abort();
-        return ret;
-    }
+    ESP_LOGI(kTag, "OTA: wrote %u bytes, setting boot partition...", (unsigned)writeOffset_);
 
-    ret = esp_ota_set_boot_partition(partition_);
+    esp_err_t ret = esp_ota_set_boot_partition(partition_);
     if (ret != ESP_OK)
     {
         ESP_LOGE(kTag, "esp_ota_set_boot_partition failed: %s", esp_err_to_name(ret));
@@ -121,12 +127,12 @@ void OtaUpdater::abort()
 {
     if (active_)
     {
-        esp_ota_abort(handle_);
         ESP_LOGW(kTag, "OTA update aborted");
     }
     active_ = false;
-    handle_ = 0;
     partition_ = nullptr;
+    encrypted_ = false;
+    writeOffset_ = 0;
 }
 
 }  // namespace safemode
