@@ -4,15 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ESP32 "safemode" firmware — a recovery partition that lets users OTA-flash new application firmware over WiFi. The device exposes an AP ("SAFEMODE") and serves a React-based upload UI.
+ESP32 "safemode" firmware — a universal recovery partition that works on any ESP32 device. Boots into a WiFi AP, serves a React-based web UI for OTA firmware updates, and optionally provides factory reset with selective NVS key preservation.
 
-Two-partition boot scheme: `app` (ota_0) is the main application; `safemode` (ota_1) is the always-present recovery image. The safemode firmware writes new binaries to the `app` partition and reboots into it.
-
-Designed to run on arbitrary ESP32 devices — auto-discovers the partition table at runtime and supports flash encryption (pre-encrypted `.enc.bin` uploads).
-
-## Hardware
-
-ESP32-WROOM-32E-N8R2 (dual-core Xtensa LX6 @ 240MHz, 8MB flash, 2MB PSRAM)
+Partition-agnostic: scans flash at startup to discover the partition table (no hardcoded offsets). Supports flash encryption (pre-encrypted `.enc.bin` uploads). NVS is best-effort — WiFi uses RAM-only storage as fallback.
 
 ## Build Commands
 
@@ -63,40 +57,48 @@ npm run build    # TypeScript check + Vite production build
 
 Pure ESP-IDF 6.0, C++20, `safemode::` namespace. No Arduino, no PlatformIO.
 
+### Startup Sequence (main.cpp)
+
+1. Scan flash for partition table (always — no compiled-in offset dependency)
+2. Register discovered partitions via `esp_partition_register_external()`
+3. Init NVS (best-effort — continue without it if unavailable)
+4. Start WiFi AP (SSID "SAFEMODE", pass "safemode", IP 4.3.2.1, RAM-only storage)
+5. Start HTTP server with OTA updater
+6. Idle loop
+
 ### Components
 
-- **`components/ota/`** — `OtaUpdater` class: streaming OTA with separate paths for plaintext (`esp_ota_write`) and pre-encrypted (`esp_partition_write_raw`) binaries. Finds first app partition not labeled "safemode".
+- **`components/partition_scan/`** — Scans flash 0x4000–0x20000 for partition table magic (0x50AA). Handles flash encryption via `esp_flash_read_encrypted()`. Registers all found partitions with ESP-IDF.
+- **`components/ota/`** — `OtaUpdater` class: erases target partition, writes data via `esp_partition_write()` (plaintext) or `esp_partition_write_raw()` (pre-encrypted), sets boot partition via `esp_ota_set_boot_partition()`. Does NOT use `esp_ota_begin/write/end` (incompatible with externally-registered partitions).
+- **`components/factory_reset/`** — Reads `safemode:factoryResetEnabled` and `safemode:factoryResetPreserve` from NVS. Backs up typed key/value pairs, erases NVS, restores preserved keys. Preserve list format: `namespace:key:type` (comma-separated).
 - **`components/wifi/`** — WiFi AP (`WifiAp`, RAM-only storage), HTTP server (`HttpServer`) with REST API + embedded web assets.
-- **`components/partition_scan/`** — Runtime partition table discovery. Scans flash for the partition table if the compiled-in offset doesn't match, handles encrypted flash reads, registers found partitions via `esp_partition_register_external()`.
-
-### main/main.cpp
-
-Wires everything: NVS init (with partition scan fallback), WiFi AP start (SSID "SAFEMODE", pass "safemode", IP 4.3.2.1), OTA updater + HTTP server start, idle loop.
 
 ### API Endpoints
 
 - `POST /api/ping` — health check
 - `POST /api/restart` — schedule reboot (5s delay)
-- `POST /api/app` — set boot partition to "app", reboot
+- `POST /api/app` — set boot partition to app (first non-safemode app partition), reboot
 - `POST /api/update` — receive firmware binary, stream to OTA updater
-- `GET /api/info` — device metadata (chip, IDF version, heap, partitions)
+- `POST /api/factory-reset` — wipe NVS with key preservation
+- `GET /api/info` — device metadata (chip, IDF version, heap, partitions, factoryResetEnabled)
 - `OPTIONS /api/*` — CORS preflight
 
 ### Frontend
 
 React 19 + Tailwind CSS v4 + Vite 8 + TypeScript. Located at `firmware/frontend/`. Built by `scripts/build_frontend.py`, which gzip-compresses assets and generates `web_assets.h` + `web_assets.cmake` for ESP-IDF `EMBED_FILES`.
 
-### Flash Partition Layout
+### NVS Convention
 
-Partition table at offset `0x10000`. Configured in `firmware/partitions.csv`.
+Host apps configure safemode by writing to the `"safemode"` NVS namespace:
 
-| Name     | Type | SubType | Offset   | Size   | Flags     |
-|----------|------|---------|----------|--------|-----------|
-| nvs      | data | nvs     | 0x11000  | 52KB   |           |
-| otadata  | data | ota     | 0x1E000  | 8KB    |           |
-| app      | app  | ota_0   | 0x20000  | 3.06MB | encrypted |
-| safemode | app  | ota_1   | 0x330000 | 896KB  | encrypted |
-| spiffs   | data | spiffs  | 0x410000 | 3.9MB  |           |
+| Key | Type | Description |
+|-----|------|-------------|
+| `factoryResetEnabled` | `u8` | Set to `1` to show factory reset button |
+| `factoryResetPreserve` | `str` | Comma-separated `namespace:key:type` pairs to preserve through reset |
+
+### Build Partition Layout
+
+`firmware/partitions.csv` exists for the build system only — the runtime ignores compiled-in offsets. `CONFIG_PARTITION_TABLE_OFFSET` in `sdkconfig.defaults` is a build-time artifact; runtime always scans.
 
 ## Code Style
 
