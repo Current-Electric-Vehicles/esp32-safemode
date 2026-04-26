@@ -18,11 +18,14 @@ jobs:
       version: ${{ steps.release.outputs.version }}
 
     steps:
+      - uses: actions/checkout@v4
+
       - uses: googleapis/release-please-action@v4
         id: release
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+          target-branch: main
 
   build-release:
     needs: release-please

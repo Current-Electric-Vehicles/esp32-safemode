@@ -152,19 +152,32 @@ python scripts/flash.py --monitor
 python scripts/clean.py --all
 ```
 
-## CI / Releases
+## Branching & CI
 
-Every push to `main` runs a full build (frontend + firmware) via GitHub Actions. The firmware binary is uploaded as a build artifact.
+This repo uses **git flow**:
 
-Versioning is automatic via [release-please](https://github.com/googleapis/release-please) using [Conventional Commits](https://www.conventionalcommits.org/):
+- **`develop`** — active development branch. All feature branches merge here.
+- **`main`** — release branch. Only receives merges from `develop` when cutting a release.
+- **`feature/*`** — feature branches off `develop`.
+
+### CI Workflows
+
+**Build** — runs on every push to `develop` and on PRs to `develop` or `main`. Builds the full project (frontend + firmware) and uploads the firmware binary as an artifact.
+
+**Release** — runs only on pushes to `main`. Uses [release-please](https://github.com/googleapis/release-please) with [Conventional Commits](https://www.conventionalcommits.org/) for automatic semver:
 
 | Commit prefix | Version bump | Example |
 |---------------|-------------|---------|
-| `fix:` | patch (0.1.0 -> 0.1.1) | `fix: handle NVS erase failure` |
-| `feat:` | minor (0.1.0 -> 0.2.0) | `feat: add factory reset` |
-| `feat!:` or `BREAKING CHANGE:` | major (0.1.0 -> 1.0.0) | `feat!: change preserve list format` |
+| `fix:` | patch (0.2.0 -> 0.2.1) | `fix: handle NVS erase failure` |
+| `feat:` | minor (0.2.0 -> 0.3.0) | `feat: add factory reset` |
+| `feat!:` or `BREAKING CHANGE:` | major (0.2.0 -> 1.0.0) | `feat!: change preserve list format` |
 
-When commits land on `main`, release-please opens (or updates) a release PR with a changelog. Merging that PR creates a GitHub Release with the `safemode-vX.Y.Z.bin` firmware binary attached.
+### Cutting a Release
+
+1. Merge `develop` into `main`
+2. Release-please reads the new commits and opens (or updates) a release PR on `main` with a changelog
+3. Merge the release PR — this creates a GitHub Release with `safemode-vX.Y.Z.bin` attached
+4. Merge `main` back into `develop` to pick up the version bump
 
 Pre-built binaries are available on the [Releases page](https://github.com/Current-Electric-Vehicles/esp32-safemode/releases).
 
