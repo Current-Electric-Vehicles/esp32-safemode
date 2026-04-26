@@ -1,0 +1,47 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: firmware/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: firmware/frontend
+
+      - name: Build frontend
+        run: npm run build
+        working-directory: firmware/frontend
+
+      - uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.4  # closest available CI image to v6.0
+          target: esp32
+          path: firmware
+          command: |
+            VERSION=$(date -u +%Y%m%d%H%M%S)
+            echo "VERSION=${VERSION}" >> $GITHUB_ENV
+            python ../scripts/build_frontend.py
+            idf.py -B build build
+            cp build/safemode.bin ../safemode-${VERSION}.bin
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: safemode-${{ env.VERSION }}
+          path: safemode-*.bin
+          if-no-files-found: error

@@ -1,5 +1,7 @@
 # esp32-safemode
 
+[![Build](https://github.com/Current-Electric-Vehicles/esp32-safemode/actions/workflows/build.yml/badge.svg)](https://github.com/Current-Electric-Vehicles/esp32-safemode/actions/workflows/build.yml)
+
 A universal recovery partition for ESP32 devices. When your main app is bricked, safemode boots into a WiFi AP and serves a web UI for OTA-flashing new firmware. It works on any ESP32 device regardless of partition layout, supports flash encryption, and optionally provides factory reset with selective NVS key preservation.
 
 ## Why
@@ -149,6 +151,17 @@ python scripts/flash.py --monitor
 # Clean everything
 python scripts/clean.py --all
 ```
+
+## CI / Releases
+
+Every push to `main` runs a full build (frontend + firmware) via GitHub Actions. The firmware artifact (`safemode-YYYYMMDDHHMMSS.bin`) is uploaded and downloadable from the workflow run.
+
+To create a release:
+
+- **Tag-based:** Push a tag like `v20260426120000` — CI builds and publishes a GitHub Release with the firmware binary attached.
+- **Manual:** Trigger the Release workflow from the Actions tab — generates a version from the current UTC timestamp.
+
+Pre-built binaries are available on the [Releases page](https://github.com/Current-Electric-Vehicles/esp32-safemode/releases).
 
 ## Architecture
 
