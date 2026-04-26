@@ -33,6 +33,24 @@ This means you can drop the safemode binary into any ESP32 project's partition s
 
 The partition names, offsets, and sizes don't matter — safemode discovers everything at runtime.
 
+### Example Partition Table
+
+```csv
+# Name,     Type,   SubType,  Offset,     Size,       Flags
+nvs,        data,   nvs,      0x11000,    0xD000,
+otadata,    data,   ota,      0x1E000,    0x2000,
+app,        app,    ota_0,    0x20000,    0x310000,
+safemode,   app,    ota_1,    0x330000,   0xE0000,
+spiffs,     data,   spiffs,   0x410000,   0x3F0000,
+```
+
+The safemode partition needs to be large enough to hold the safemode binary (~800KB). The app partition can be any size. Offsets, names, and order are up to you — safemode doesn't care. For flash-encrypted devices, add the `encrypted` flag to the app partitions:
+
+```csv
+app,        app,    ota_0,    0x20000,    0x310000,   encrypted
+safemode,   app,    ota_1,    0x330000,   0xE0000,    encrypted
+```
+
 ## Flash Encryption Support
 
 Safemode works on devices with flash encryption enabled:
