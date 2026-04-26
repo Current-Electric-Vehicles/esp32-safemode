@@ -29,19 +29,17 @@ jobs:
 
       - uses: espressif/esp-idf-ci-action@v1
         with:
-          esp_idf_version: v5.4  # closest available CI image to v6.0
+          esp_idf_version: v5.4
           target: esp32
           path: firmware
           command: |
-            VERSION=$(date -u +%Y%m%d%H%M%S)
-            echo "VERSION=${VERSION}" >> $GITHUB_ENV
             python ../scripts/build_frontend.py
             idf.py -B build build
-            cp build/safemode.bin ../safemode-${VERSION}.bin
+            cp build/safemode.bin ../safemode.bin
 
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
         with:
-          name: safemode-${{ env.VERSION }}
-          path: safemode-*.bin
+          name: safemode
+          path: safemode.bin
           if-no-files-found: error

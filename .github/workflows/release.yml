@@ -2,12 +2,31 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
-  workflow_dispatch:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
-  release:
+  release-please:
+    runs-on: ubuntu-latest
+
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          release-type: simple
+          package-name: esp32-safemode
+
+  build-release:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
     runs-on: ubuntu-latest
 
     permissions:
@@ -30,15 +49,6 @@ jobs:
         run: npm run build
         working-directory: firmware/frontend
 
-      - name: Set version
-        run: |
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            VERSION="${GITHUB_REF_NAME#v}"
-          else
-            VERSION=$(date -u +%Y%m%d%H%M%S)
-          fi
-          echo "VERSION=${VERSION}" >> $GITHUB_ENV
-
       - uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: v5.4
@@ -47,12 +57,11 @@ jobs:
           command: |
             python ../scripts/build_frontend.py
             idf.py -B build build
-            cp build/safemode.bin ../safemode-${VERSION}.bin
 
-      - name: Create release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: Safemode ${{ env.VERSION }}
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', env.VERSION) }}
-          generate_release_notes: true
-          files: safemode-*.bin
+      - name: Upload firmware to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ needs.release-please.outputs.version }}"
+          cp firmware/build/safemode.bin safemode-v${VERSION}.bin
+          gh release upload "${{ needs.release-please.outputs.tag_name }}" safemode-v${VERSION}.bin

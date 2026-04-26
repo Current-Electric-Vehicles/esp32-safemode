@@ -154,12 +154,17 @@ python scripts/clean.py --all
 
 ## CI / Releases
 
-Every push to `main` runs a full build (frontend + firmware) via GitHub Actions. The firmware artifact (`safemode-YYYYMMDDHHMMSS.bin`) is uploaded and downloadable from the workflow run.
+Every push to `main` runs a full build (frontend + firmware) via GitHub Actions. The firmware binary is uploaded as a build artifact.
 
-To create a release:
+Versioning is automatic via [release-please](https://github.com/googleapis/release-please) using [Conventional Commits](https://www.conventionalcommits.org/):
 
-- **Tag-based:** Push a tag like `v20260426120000` — CI builds and publishes a GitHub Release with the firmware binary attached.
-- **Manual:** Trigger the Release workflow from the Actions tab — generates a version from the current UTC timestamp.
+| Commit prefix | Version bump | Example |
+|---------------|-------------|---------|
+| `fix:` | patch (0.1.0 -> 0.1.1) | `fix: handle NVS erase failure` |
+| `feat:` | minor (0.1.0 -> 0.2.0) | `feat: add factory reset` |
+| `feat!:` or `BREAKING CHANGE:` | major (0.1.0 -> 1.0.0) | `feat!: change preserve list format` |
+
+When commits land on `main`, release-please opens (or updates) a release PR with a changelog. Merging that PR creates a GitHub Release with the `safemode-vX.Y.Z.bin` firmware binary attached.
 
 Pre-built binaries are available on the [Releases page](https://github.com/Current-Electric-Vehicles/esp32-safemode/releases).
 
