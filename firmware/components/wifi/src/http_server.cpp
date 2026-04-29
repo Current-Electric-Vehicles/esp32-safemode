@@ -8,6 +8,8 @@
 #include "esp_timer.h"
 #include "esp_wifi.h"
 #include "factory_reset.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "ota_updater.h"
 #include "web_assets.h"
 
@@ -101,8 +103,11 @@ void HttpServer::rebootTimerCallback(void* arg)
     esp_restart();
 }
 
-void HttpServer::factoryResetTimerCallback(void* arg)
+void HttpServer::factoryResetTask(void* arg)
 {
+    // Delay to let the HTTP response flush
+    vTaskDelay(pdMS_TO_TICKS(2000));
+
     ESP_LOGI("http_server", "Performing factory reset...");
     // Stop WiFi first — the PHY background task accesses NVS calibration
     // data and will crash if we erase NVS while it's running.
@@ -456,23 +461,12 @@ esp_err_t HttpServer::handleFactoryReset(httpd_req_t* req)
         return ESP_OK;
     }
 
-    // Send response first, then schedule the actual reset on a timer.
+    // Send response first, then perform the reset in a dedicated task.
     // We can't erase NVS while WiFi is running (PHY task accesses NVS
-    // calibration data), so the timer callback stops WiFi, erases, and reboots.
+    // calibration data), so the task stops WiFi, erases, and reboots.
     sendJsonOk(req);
 
-    const esp_timer_create_args_t timerArgs = {
-        .callback = factoryResetTimerCallback,
-        .arg = nullptr,
-        .dispatch_method = ESP_TIMER_TASK,
-        .name = "factory_reset",
-        .skip_unhandled_events = false,
-    };
-    esp_timer_handle_t timer = nullptr;
-    if (esp_timer_create(&timerArgs, &timer) == ESP_OK)
-    {
-        esp_timer_start_once(timer, 2000000);  // 2 seconds — let response flush
-    }
+    xTaskCreate(factoryResetTask, "factory_reset", 8192, nullptr, 5, nullptr);
 
     return ESP_OK;
 }
