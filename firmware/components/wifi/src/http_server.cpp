@@ -113,7 +113,27 @@ void HttpServer::factoryResetTask(void* arg)
     // data and will crash if we erase NVS while it's running.
     esp_wifi_stop();
     safemode::performFactoryReset();
-    ESP_LOGI("http_server", "Factory reset done, rebooting...");
+
+    // Set boot partition to the app (first non-safemode app partition)
+    esp_partition_iterator_t it = esp_partition_find(
+        ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, nullptr);
+    while (it != nullptr)
+    {
+        const esp_partition_t* p = esp_partition_get(it);
+        if (strcmp(p->label, "safemode") != 0)
+        {
+            esp_ota_set_boot_partition(p);
+            ESP_LOGI("http_server", "Boot partition set to '%s'", p->label);
+            break;
+        }
+        it = esp_partition_next(it);
+    }
+    if (it != nullptr)
+    {
+        esp_partition_iterator_release(it);
+    }
+
+    ESP_LOGI("http_server", "Factory reset done, rebooting into app...");
     esp_restart();
 }
 
