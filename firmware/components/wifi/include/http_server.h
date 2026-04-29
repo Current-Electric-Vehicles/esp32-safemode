@@ -54,6 +54,7 @@ private:
     static void sendJsonError(httpd_req_t* req, int status);
 
     static void rebootTimerCallback(void* arg);
+    static void factoryResetTimerCallback(void* arg);
 };
 
 }  // namespace safemode
