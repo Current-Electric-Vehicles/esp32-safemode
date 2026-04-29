@@ -19,11 +19,6 @@ ENV_CACHE_FILE = REPO_ROOT / "scripts" / ".idf_env_cache.json"
 
 PARTITIONS_CSV = FIRMWARE_DIR / "partitions.csv"
 
-# Fixed addresses (not in partitions.csv) — ESP32
-ADDR_BOOTLOADER = "0x1000"
-ADDR_PARTITION_TABLE = "0x8000"
-
-
 def parse_partitions_csv(csv_path: Path = PARTITIONS_CSV) -> dict[str, dict]:
     """Parse partitions.csv and return a dict keyed by partition name.
 
@@ -50,12 +45,27 @@ def parse_partitions_csv(csv_path: Path = PARTITIONS_CSV) -> dict[str, dict]:
 
 
 def get_partition_address(name: str) -> str:
-    """Get the flash offset for a named partition from partitions.csv."""
+    """Get a flash address from partitions.csv.
+
+    Looks up both data rows (nvs, app, safemode, etc.) and comment-style
+    metadata rows like '# bootloader = 0x1000' and '# partition table = 0x10000'.
+    """
+    # Check data rows first
     partitions = parse_partitions_csv()
-    if name not in partitions:
-        print(f"[safemode] ERROR: Partition '{name}' not found in {PARTITIONS_CSV}", file=sys.stderr)
-        sys.exit(1)
-    return partitions[name]["offset"]
+    if name in partitions:
+        return partitions[name]["offset"]
+
+    # Check comment-style metadata (e.g. "# bootloader = 0x1000")
+    lookup = name.replace("-", " ").lower()
+    for line in PARTITIONS_CSV.read_text().splitlines():
+        line = line.strip()
+        if line.startswith("#") and "=" in line:
+            key, _, val = line.lstrip("# ").partition("=")
+            if key.strip().lower() == lookup:
+                return val.strip()
+
+    print(f"[safemode] ERROR: '{name}' not found in {PARTITIONS_CSV}", file=sys.stderr)
+    sys.exit(1)
 
 
 # Common ESP-IDF install locations (checked in order)
@@ -215,14 +225,21 @@ def add_port_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
-# Espressif USB VID
-_ESPRESSIF_VID = 0x303A
+# Known USB VIDs for ESP32 dev boards and common USB-serial chips
+_KNOWN_VIDS = {
+    0x303A,  # Espressif (built-in USB-JTAG/CDC on ESP32-S2/S3/C3)
+    0x10C4,  # Silicon Labs CP210x
+    0x0403,  # FTDI
+    0x1A86,  # WCH CH340/CH341
+    0x2341,  # Arduino
+    0x239A,  # Adafruit
+}
 
 def detect_serial_port() -> str | None:
-    """Auto-detect an Espressif ESP32 serial port.
+    """Auto-detect an ESP32 serial port.
 
-    Looks for devices with the Espressif USB VID (0x303A).
-    Returns the port device path, or None if not found.
+    First checks for known USB VIDs (Espressif, CP210x, FTDI, CH340, etc.),
+    then falls back to looking for "usbmodem" or "usbserial" in device names.
     """
     try:
         from serial.tools.list_ports import comports
@@ -230,7 +247,11 @@ def detect_serial_port() -> str | None:
         print("[safemode] WARNING: pyserial not installed, cannot auto-detect port", file=sys.stderr)
         return None
 
-    candidates = [p for p in comports() if p.vid == _ESPRESSIF_VID]
+    candidates = [p for p in comports() if p.vid in _KNOWN_VIDS]
+
+    if not candidates:
+        candidates = [p for p in comports()
+                      if p.device and ("usbmodem" in p.device or "usbserial" in p.device)]
 
     if not candidates:
         return None
@@ -240,10 +261,11 @@ def detect_serial_port() -> str | None:
         print(f"[safemode] Auto-detected port: {port.device} ({port.product})")
         return port.device
 
-    # Multiple Espressif devices — list them and pick the first
-    print("[safemode] Multiple Espressif devices found:")
+    print("[safemode] Multiple serial devices found:")
     for i, p in enumerate(candidates):
-        print(f"  [{i}] {p.device} — {p.product} ({p.vid:#06x}:{p.pid:#06x})")
+        vid = f"{p.vid:#06x}" if p.vid else "????"
+        pid = f"{p.pid:#06x}" if p.pid else "????"
+        print(f"  [{i}] {p.device} -- {p.product} ({vid}:{pid})")
     print(f"[safemode] Using: {candidates[0].device} (use -p to override)")
     return candidates[0].device
 
@@ -393,3 +415,43 @@ def run_idf(*args: str, release: bool = False, verbose: bool = False,
 
     result = subprocess.run(["bash", "-c", bash_cmd], cwd=str(FIRMWARE_DIR), env=env)
     return result.returncode
+
+
+# ---- esptool helpers ----
+
+def _find_esptool(name: str) -> str:
+    """Find an esptool command (espsecure, esptool, espefuse)."""
+    base_name = name.removesuffix(".py")
+    candidates = [base_name, name] if base_name != name else [name]
+
+    idf_path = _find_idf_path()
+    _, venv_path = _find_idf_python(idf_path)
+    for n in candidates:
+        candidate = Path(venv_path) / "bin" / n
+        if candidate.is_file():
+            return str(candidate)
+
+    import shutil as _shutil
+    for n in candidates:
+        found = _shutil.which(n)
+        if found:
+            return found
+
+    print(f"[safemode] ERROR: Could not find {base_name}", file=sys.stderr)
+    sys.exit(1)
+
+
+def get_idf_python() -> str:
+    """Return the IDF venv Python path."""
+    idf_path = _find_idf_path()
+    python, _ = _find_idf_python(idf_path)
+    return python
+
+
+def run_esptool(*args: str) -> int:
+    """Run esptool with the given arguments."""
+    python = get_idf_python()
+    tool = _find_esptool("esptool")
+    cmd = [python, tool] + list(args)
+    print(f"[safemode] {' '.join(cmd)}")
+    return subprocess.run(cmd, cwd=str(FIRMWARE_DIR)).returncode
