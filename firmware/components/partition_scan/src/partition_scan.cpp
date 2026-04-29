@@ -113,6 +113,19 @@ esp_err_t scanAndRegisterPartitions()
                  label, entry.type, entry.subtype,
                  (unsigned long)entry.offset, (unsigned long)entry.size);
 
+        // Check if this partition was already loaded natively by ESP-IDF
+        // (happens when CONFIG_PARTITION_TABLE_OFFSET matches the device)
+        const esp_partition_t* existing = esp_partition_find_first(
+            static_cast<esp_partition_type_t>(entry.type),
+            static_cast<esp_partition_subtype_t>(entry.subtype),
+            label);
+
+        if (existing != nullptr)
+        {
+            registered++;
+            continue;
+        }
+
         const esp_partition_t* out = nullptr;
         esp_err_t ret = esp_partition_register_external(
             nullptr,  // main internal flash
