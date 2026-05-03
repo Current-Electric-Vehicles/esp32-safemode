@@ -1,5 +1,6 @@
 #include "esp_log.h"
 #include "http_server.h"
+#include "mdns_advertise.h"
 #include "nvs_flash.h"
 #include "ota_updater.h"
 #include "partition_scan.h"
@@ -53,6 +54,15 @@ extern "C" void app_main()
     {
         ESP_LOGE(kTag, "Failed to start WiFi AP: %s", esp_err_to_name(ret));
         return;
+    }
+
+    // Advertise via mDNS so companion apps can discover the device on the
+    // SAFEMODE AP. Best-effort — failures here must not block the recovery
+    // HTTP server from coming up.
+    ret = safemode::MdnsAdvertise::start();
+    if (ret != ESP_OK)
+    {
+        ESP_LOGW(kTag, "mDNS unavailable (%s), continuing without it", esp_err_to_name(ret));
     }
 
     // Create OTA updater

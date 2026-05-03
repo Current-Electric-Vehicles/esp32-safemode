@@ -1,0 +1,11 @@
+idf_component_register(
+    SRCS
+        "src/mdns_advertise.cpp"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        app_update
+    PRIV_REQUIRES
+        esp_hw_support
+        mdns
+)

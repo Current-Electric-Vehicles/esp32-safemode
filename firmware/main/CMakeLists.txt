@@ -5,6 +5,7 @@ idf_component_register(
         wifi
         ota
         partition_scan
+        mdns_advertise
     PRIV_REQUIRES
         nvs_flash
         esp_timer
