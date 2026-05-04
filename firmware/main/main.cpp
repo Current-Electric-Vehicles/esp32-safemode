@@ -87,7 +87,7 @@ extern "C" void app_main()
     {
         const esp_app_desc_t* appDesc = esp_app_get_description();
         safemode::ble::Info bleInfo;
-        bleInfo.deviceName = "SAFEMODE";
+        bleInfo.deviceName = "safemode";
         bleInfo.ssid = "SAFEMODE";
         bleInfo.password = "safemode";
         bleInfo.ipAddress = "4.3.2.1";
