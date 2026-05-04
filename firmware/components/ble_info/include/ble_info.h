@@ -22,8 +22,11 @@ struct Info
 
 /// Start advertising the safemode info service.
 /// Service UUID: 5afe0000-2026-4d3e-b9c1-7fa8c4d6e8a1
-/// Info characteristic UUID: 5afe0001-2026-4d3e-b9c1-7fa8c4d6e8a1
-///   - Read-only, returns JSON: {"ssid":"...","ip":"...","version":"..."}
+/// Read-only characteristics (each returns a plain UTF-8 string):
+///   SSID:     5afe0001-2026-4d3e-b9c1-7fa8c4d6e8a1
+///   Password: 5afe0002-2026-4d3e-b9c1-7fa8c4d6e8a1
+///   IP:       5afe0003-2026-4d3e-b9c1-7fa8c4d6e8a1
+///   Version:  5afe0004-2026-4d3e-b9c1-7fa8c4d6e8a1
 esp_err_t startInfoBroadcast(const Info& info);
 
 /// Stop advertising and shut down the BLE stack.

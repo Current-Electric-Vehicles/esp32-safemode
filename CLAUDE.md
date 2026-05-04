@@ -72,7 +72,7 @@ Pure ESP-IDF 6.0, C++20, `safemode::` namespace. No Arduino, no PlatformIO.
 - **`components/ota/`** — `OtaUpdater` class: erases target partition, writes data via `esp_partition_write()` (plaintext) or `esp_partition_write_raw()` (pre-encrypted), sets boot partition via `esp_ota_set_boot_partition()`. Does NOT use `esp_ota_begin/write/end` (incompatible with externally-registered partitions).
 - **`components/factory_reset/`** — Reads `safemode:frEnabled` and `safemode:frPreserve` from NVS. Backs up typed key/value pairs, erases NVS, restores preserved keys. Preserve list format: `namespace:key:type` (comma-separated). NVS key names are capped at 15 chars (`NVS_KEY_NAME_MAX_SIZE - 1`); longer names like `factoryResetEnabled` are silently rejected as `ESP_ERR_NVS_KEY_TOO_LONG`.
 - **`components/wifi/`** — WiFi AP (`WifiAp`, RAM-only storage), HTTP server (`HttpServer`) with REST API + embedded web assets.
-- **`components/ble_info/`** — NimBLE-based info broadcaster. Service `5afe0000-2026-4d3e-b9c1-7fa8c4d6e8a1`, single read-only characteristic returning JSON `{"ssid":"...","password":"...","ip":"...","version":"..."}`. No pairing.
+- **`components/ble_info/`** — NimBLE-based info broadcaster. Service `5afe0000-2026-4d3e-b9c1-7fa8c4d6e8a1` with four read-only characteristics returning plain UTF-8 strings: SSID (`5afe0001`), Password (`5afe0002`), IP (`5afe0003`), Version (`5afe0004`). No pairing.
 
 ### API Endpoints
 

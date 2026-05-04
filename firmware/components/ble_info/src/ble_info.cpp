@@ -18,26 +18,40 @@ namespace ble
 
 static constexpr const char* kTag = "ble_info";
 static constexpr size_t kMaxNameLength = 29;
-static constexpr size_t kMaxJsonLength = 256;
 
-// Service UUID:        5afe0000-2026-4d3e-b9c1-7fa8c4d6e8a1
-// Info characteristic: 5afe0001-2026-4d3e-b9c1-7fa8c4d6e8a1
+// Service UUID:  5afe0000-2026-4d3e-b9c1-7fa8c4d6e8a1
+// SSID:          5afe0001-2026-4d3e-b9c1-7fa8c4d6e8a1
+// Password:      5afe0002-2026-4d3e-b9c1-7fa8c4d6e8a1
+// IP address:    5afe0003-2026-4d3e-b9c1-7fa8c4d6e8a1
+// Version:       5afe0004-2026-4d3e-b9c1-7fa8c4d6e8a1
 // (BLE_UUID128_INIT takes bytes in reverse order)
 static const ble_uuid128_t kServiceUuid =
     BLE_UUID128_INIT(0xa1, 0xe8, 0xd6, 0xc4, 0xa8, 0x7f, 0xc1, 0xb9,
                      0x3e, 0x4d, 0x26, 0x20, 0x00, 0x00, 0xfe, 0x5a);
 
-static const ble_uuid128_t kInfoCharUuid =
+static const ble_uuid128_t kSsidUuid =
     BLE_UUID128_INIT(0xa1, 0xe8, 0xd6, 0xc4, 0xa8, 0x7f, 0xc1, 0xb9,
                      0x3e, 0x4d, 0x26, 0x20, 0x01, 0x00, 0xfe, 0x5a);
 
-// Cached info — the JSON payload is rebuilt once at start.
+static const ble_uuid128_t kPasswordUuid =
+    BLE_UUID128_INIT(0xa1, 0xe8, 0xd6, 0xc4, 0xa8, 0x7f, 0xc1, 0xb9,
+                     0x3e, 0x4d, 0x26, 0x20, 0x02, 0x00, 0xfe, 0x5a);
+
+static const ble_uuid128_t kIpUuid =
+    BLE_UUID128_INIT(0xa1, 0xe8, 0xd6, 0xc4, 0xa8, 0x7f, 0xc1, 0xb9,
+                     0x3e, 0x4d, 0x26, 0x20, 0x03, 0x00, 0xfe, 0x5a);
+
+static const ble_uuid128_t kVersionUuid =
+    BLE_UUID128_INIT(0xa1, 0xe8, 0xd6, 0xc4, 0xa8, 0x7f, 0xc1, 0xb9,
+                     0x3e, 0x4d, 0x26, 0x20, 0x04, 0x00, 0xfe, 0x5a);
+
 static Info sInfo;
-static char sJsonBuf[kMaxJsonLength];
-static size_t sJsonLen = 0;
 static std::string sDeviceName;
 
-static uint16_t sInfoCharHandle = 0;
+static uint16_t sSsidHandle = 0;
+static uint16_t sPasswordHandle = 0;
+static uint16_t sIpHandle = 0;
+static uint16_t sVersionHandle = 0;
 
 static int gapEventHandler(struct ble_gap_event* event, void* arg);
 static int gattAccessHandler(uint16_t conn_handle, uint16_t attr_handle,
@@ -45,13 +59,43 @@ static int gattAccessHandler(uint16_t conn_handle, uint16_t attr_handle,
 
 static struct ble_gatt_chr_def sCharacteristics[] = {
     {
-        .uuid = &kInfoCharUuid.u,
+        .uuid = &kSsidUuid.u,
         .access_cb = gattAccessHandler,
         .arg = nullptr,
         .descriptors = nullptr,
         .flags = BLE_GATT_CHR_F_READ,
         .min_key_size = 0,
-        .val_handle = &sInfoCharHandle,
+        .val_handle = &sSsidHandle,
+        .cpfd = nullptr,
+    },
+    {
+        .uuid = &kPasswordUuid.u,
+        .access_cb = gattAccessHandler,
+        .arg = nullptr,
+        .descriptors = nullptr,
+        .flags = BLE_GATT_CHR_F_READ,
+        .min_key_size = 0,
+        .val_handle = &sPasswordHandle,
+        .cpfd = nullptr,
+    },
+    {
+        .uuid = &kIpUuid.u,
+        .access_cb = gattAccessHandler,
+        .arg = nullptr,
+        .descriptors = nullptr,
+        .flags = BLE_GATT_CHR_F_READ,
+        .min_key_size = 0,
+        .val_handle = &sIpHandle,
+        .cpfd = nullptr,
+    },
+    {
+        .uuid = &kVersionUuid.u,
+        .access_cb = gattAccessHandler,
+        .arg = nullptr,
+        .descriptors = nullptr,
+        .flags = BLE_GATT_CHR_F_READ,
+        .min_key_size = 0,
+        .val_handle = &sVersionHandle,
         .cpfd = nullptr,
     },
     {
@@ -80,21 +124,6 @@ static const struct ble_gatt_svc_def sServices[] = {
         .characteristics = nullptr,
     },
 };
-
-static void buildJson()
-{
-    sJsonLen = std::snprintf(sJsonBuf, sizeof(sJsonBuf),
-        "{\"ssid\":\"%s\",\"password\":\"%s\",\"ip\":\"%s\",\"version\":\"%s\"}",
-        sInfo.ssid.c_str(),
-        sInfo.password.c_str(),
-        sInfo.ipAddress.c_str(),
-        sInfo.firmwareVersion.c_str());
-    if (sJsonLen >= sizeof(sJsonBuf))
-    {
-        sJsonLen = sizeof(sJsonBuf) - 1;
-        sJsonBuf[sJsonLen] = '\0';
-    }
-}
 
 static void startAdvertising()
 {
@@ -162,12 +191,20 @@ static int gapEventHandler(struct ble_gap_event* event, void* /*arg*/)
 static int gattAccessHandler(uint16_t /*conn_handle*/, uint16_t attr_handle,
                              struct ble_gatt_access_ctxt* ctxt, void* /*arg*/)
 {
-    if (ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR && attr_handle == sInfoCharHandle)
+    if (ctxt->op != BLE_GATT_ACCESS_OP_READ_CHR)
     {
-        int rc = os_mbuf_append(ctxt->om, sJsonBuf, sJsonLen);
-        return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+        return BLE_ATT_ERR_UNLIKELY;
     }
-    return BLE_ATT_ERR_UNLIKELY;
+
+    const std::string* value = nullptr;
+    if (attr_handle == sSsidHandle)         value = &sInfo.ssid;
+    else if (attr_handle == sPasswordHandle) value = &sInfo.password;
+    else if (attr_handle == sIpHandle)       value = &sInfo.ipAddress;
+    else if (attr_handle == sVersionHandle)  value = &sInfo.firmwareVersion;
+    else return BLE_ATT_ERR_UNLIKELY;
+
+    int rc = os_mbuf_append(ctxt->om, value->c_str(), value->length());
+    return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
 }
 
 static void onSync()
@@ -198,7 +235,6 @@ esp_err_t startInfoBroadcast(const Info& info)
 {
     sInfo = info;
     sDeviceName = info.deviceName.substr(0, kMaxNameLength);
-    buildJson();
 
     esp_err_t ret = nimble_port_init();
     if (ret != ESP_OK)
@@ -235,7 +271,8 @@ esp_err_t startInfoBroadcast(const Info& info)
 
     nimble_port_freertos_init(hostTask);
 
-    ESP_LOGI(kTag, "BLE info service initialized — info=%s", sJsonBuf);
+    ESP_LOGI(kTag, "BLE info service initialized — ssid=%s ip=%s version=%s",
+             sInfo.ssid.c_str(), sInfo.ipAddress.c_str(), sInfo.firmwareVersion.c_str());
     return ESP_OK;
 }
 

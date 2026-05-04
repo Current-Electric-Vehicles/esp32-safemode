@@ -65,18 +65,17 @@ Upload whichever binary your build system produces — safemode detects the part
 
 Safemode broadcasts a BLE advertising packet so apps can discover devices in safemode without joining the WiFi AP first. The service is read-only and requires no pairing.
 
-| Item | UUID |
-|------|------|
-| Service | `5afe0000-2026-4d3e-b9c1-7fa8c4d6e8a1` |
-| Info characteristic (read) | `5afe0001-2026-4d3e-b9c1-7fa8c4d6e8a1` |
+| Characteristic | UUID | Returns |
+|---|---|---|
+| Service | `5afe0000-2026-4d3e-b9c1-7fa8c4d6e8a1` | — |
+| SSID | `5afe0001-2026-4d3e-b9c1-7fa8c4d6e8a1` | `"SAFEMODE"` |
+| Password | `5afe0002-2026-4d3e-b9c1-7fa8c4d6e8a1` | `"safemode"` |
+| IP | `5afe0003-2026-4d3e-b9c1-7fa8c4d6e8a1` | `"4.3.2.1"` |
+| Version | `5afe0004-2026-4d3e-b9c1-7fa8c4d6e8a1` | `"0.2.0"` |
 
-The info characteristic returns a JSON blob:
+All characteristics are read-only and return plain UTF-8 strings.
 
-```json
-{"ssid":"SAFEMODE","password":"safemode","ip":"4.3.2.1","version":"0.2.0"}
-```
-
-A companion app can scan for the service UUID, read this characteristic, then prompt the user to join the WiFi AP and open the URL to perform recovery.
+A companion app can scan for the service UUID, read these characteristics, then prompt the user to join the WiFi AP and open the URL to perform recovery.
 
 ## Factory Reset
 
