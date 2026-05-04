@@ -1,3 +1,5 @@
+#include "ble_info.h"
+#include "esp_app_desc.h"
 #include "esp_log.h"
 #include "http_server.h"
 #include "mdns_advertise.h"
@@ -78,6 +80,23 @@ extern "C" void app_main()
     {
         ESP_LOGE(kTag, "Failed to start HTTP server: %s", esp_err_to_name(ret));
         return;
+    }
+
+    // Start BLE info broadcast so apps can discover safemode without
+    // joining the WiFi AP first.
+    {
+        const esp_app_desc_t* appDesc = esp_app_get_description();
+        safemode::ble::Info bleInfo;
+        bleInfo.deviceName = "SAFEMODE";
+        bleInfo.ssid = "SAFEMODE";
+        bleInfo.password = "safemode";
+        bleInfo.ipAddress = "4.3.2.1";
+        bleInfo.firmwareVersion = appDesc ? appDesc->version : "unknown";
+        ret = safemode::ble::startInfoBroadcast(bleInfo);
+        if (ret != ESP_OK)
+        {
+            ESP_LOGW(kTag, "BLE info broadcast failed to start: %s", esp_err_to_name(ret));
+        }
     }
 
     ESP_LOGI(kTag, "Safemode ready — connect to WiFi 'SAFEMODE' (password: safemode)");

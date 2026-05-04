@@ -39,16 +39,16 @@ The partition names, offsets, and sizes don't matter — safemode discovers ever
 # Name,     Type,   SubType,  Offset,     Size,       Flags
 nvs,        data,   nvs,      0x11000,    0xD000,
 otadata,    data,   ota,      0x1E000,    0x2000,
-app,        app,    ota_0,    0x20000,    0x310000,
-safemode,   app,    ota_1,    0x330000,   0xE0000,
+app,        app,    ota_0,    0x20000,    0x2F0000,
+safemode,   app,    ota_1,    0x310000,   0x100000,
 spiffs,     data,   spiffs,   0x410000,   0x3F0000,
 ```
 
-The safemode partition needs to be large enough to hold the safemode binary (~800KB). The app partition can be any size. Offsets, names, and order are up to you — safemode doesn't care. For flash-encrypted devices, add the `encrypted` flag to the app partitions:
+The safemode partition must be at least **1MB (0x100000)** to hold the safemode binary. The app partition can be any size. Offsets, names, and order are up to you — safemode discovers everything at runtime. For flash-encrypted devices, add the `encrypted` flag to the app partitions:
 
 ```csv
-app,        app,    ota_0,    0x20000,    0x310000,   encrypted
-safemode,   app,    ota_1,    0x330000,   0xE0000,    encrypted
+app,        app,    ota_0,    0x20000,    0x2F0000,   encrypted
+safemode,   app,    ota_1,    0x310000,   0x100000,   encrypted
 ```
 
 ## Flash Encryption Support
@@ -60,6 +60,23 @@ Safemode works on devices with flash encryption enabled:
 - **Non-encrypted devices** work too — plaintext `.bin` files are written via `esp_partition_write()` with transparent encryption handling
 
 Upload whichever binary your build system produces — safemode detects the partition's encryption flag and uses the correct write path.
+
+## BLE Discovery
+
+Safemode broadcasts a BLE advertising packet so apps can discover devices in safemode without joining the WiFi AP first. The service is read-only and requires no pairing.
+
+| Item | UUID |
+|------|------|
+| Service | `5afe0000-2026-4d3e-b9c1-7fa8c4d6e8a1` |
+| Info characteristic (read) | `5afe0001-2026-4d3e-b9c1-7fa8c4d6e8a1` |
+
+The info characteristic returns a JSON blob:
+
+```json
+{"ssid":"SAFEMODE","password":"safemode","ip":"4.3.2.1","version":"0.2.0"}
+```
+
+A companion app can scan for the service UUID, read this characteristic, then prompt the user to join the WiFi AP and open the URL to perform recovery.
 
 ## Factory Reset
 
@@ -78,16 +95,20 @@ void configureSafemode()
     nvs_handle_t handle;
     if (nvs_open("safemode", NVS_READWRITE, &handle) != ESP_OK) return;
 
-    // Enable the factory reset button
-    nvs_set_u8(handle, "factoryResetEnabled", 1);
+    // Enable the factory reset button.
+    // NOTE: NVS key names are limited to 15 characters (NVS_KEY_NAME_MAX_SIZE
+    // = 16 including null). Use the short names "frEnabled" / "frPreserve" —
+    // longer names like "factoryResetEnabled" are rejected with
+    // ESP_ERR_NVS_KEY_TOO_LONG and never persist.
+    nvs_set_u8(handle, "frEnabled", 1);
 
     // Keys to PRESERVE through a factory reset.
     // Format: "namespace:key:type" — comma-separated.
     // Everything NOT listed gets wiped.
-    nvs_set_str(handle, "factoryResetPreserve",
+    nvs_set_str(handle, "frPreserve",
         // Keep factory reset working after reset
-        "safemode:factoryResetEnabled:u8,"
-        "safemode:factoryResetPreserve:str,"
+        "safemode:frEnabled:u8,"
+        "safemode:frPreserve:str,"
         // Your app's keys to keep
         "wifi:ssid:str,"
         "wifi:pass:str,"

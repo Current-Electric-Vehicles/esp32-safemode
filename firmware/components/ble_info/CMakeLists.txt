@@ -1,0 +1,12 @@
+idf_component_register(
+    SRCS
+        "src/ble_info.cpp"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        bt
+    PRIV_REQUIRES
+        freertos
+        esp_app_format
+        app_update
+)

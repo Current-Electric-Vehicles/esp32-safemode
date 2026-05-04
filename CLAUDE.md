@@ -70,8 +70,9 @@ Pure ESP-IDF 6.0, C++20, `safemode::` namespace. No Arduino, no PlatformIO.
 
 - **`components/partition_scan/`** — Scans flash 0x4000–0x20000 for partition table magic (0x50AA). Handles flash encryption via `esp_flash_read_encrypted()`. Registers all found partitions with ESP-IDF.
 - **`components/ota/`** — `OtaUpdater` class: erases target partition, writes data via `esp_partition_write()` (plaintext) or `esp_partition_write_raw()` (pre-encrypted), sets boot partition via `esp_ota_set_boot_partition()`. Does NOT use `esp_ota_begin/write/end` (incompatible with externally-registered partitions).
-- **`components/factory_reset/`** — Reads `safemode:factoryResetEnabled` and `safemode:factoryResetPreserve` from NVS. Backs up typed key/value pairs, erases NVS, restores preserved keys. Preserve list format: `namespace:key:type` (comma-separated).
+- **`components/factory_reset/`** — Reads `safemode:frEnabled` and `safemode:frPreserve` from NVS. Backs up typed key/value pairs, erases NVS, restores preserved keys. Preserve list format: `namespace:key:type` (comma-separated). NVS key names are capped at 15 chars (`NVS_KEY_NAME_MAX_SIZE - 1`); longer names like `factoryResetEnabled` are silently rejected as `ESP_ERR_NVS_KEY_TOO_LONG`.
 - **`components/wifi/`** — WiFi AP (`WifiAp`, RAM-only storage), HTTP server (`HttpServer`) with REST API + embedded web assets.
+- **`components/ble_info/`** — NimBLE-based info broadcaster. Service `5afe0000-2026-4d3e-b9c1-7fa8c4d6e8a1`, single read-only characteristic returning JSON `{"ssid":"...","password":"...","ip":"...","version":"..."}`. No pairing.
 
 ### API Endpoints
 
@@ -93,8 +94,8 @@ Host apps configure safemode by writing to the `"safemode"` NVS namespace:
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `factoryResetEnabled` | `u8` | Set to `1` to show factory reset button |
-| `factoryResetPreserve` | `str` | Comma-separated `namespace:key:type` pairs to preserve through reset |
+| `frEnabled` | `u8` | Set to `1` to show factory reset button |
+| `frPreserve` | `str` | Comma-separated `namespace:key:type` pairs to preserve through reset |
 
 ### Build Partition Layout
 
