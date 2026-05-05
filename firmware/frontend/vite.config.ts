@@ -11,13 +11,7 @@ export default defineConfig({
     terserOptions: {
       compress: {
         drop_console: true,
-        passes: 3,
-        unsafe: true,
-        unsafe_arrows: true,
-        unsafe_methods: true,
-      },
-      mangle: {
-        properties: false,
+        passes: 2,
       },
     },
     cssMinify: "lightningcss",
