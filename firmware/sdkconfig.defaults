@@ -20,8 +20,11 @@ CONFIG_COMPILER_OPTIMIZATION_SIZE=y
 # CONFIG_COMPILER_CXX_EXCEPTIONS is not set
 # CONFIG_COMPILER_CXX_RTTI is not set
 
-# Logging — warn only in release, info in dev
-CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+# Logging — WARN level (drops INFO/DEBUG strings to save flash)
+# CONFIG_LOG_DEFAULT_LEVEL_INFO is not set
+CONFIG_LOG_DEFAULT_LEVEL_WARN=y
+# Master log level WARN — strips out lower-priority log calls entirely at compile time
+CONFIG_LOG_MAXIMUM_LEVEL_WARN=y
 
 # Bootloader — reduce log level to save flash
 CONFIG_BOOTLOADER_LOG_LEVEL_WARN=y
@@ -151,3 +154,35 @@ CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=128
 # CONFIG_BTDM_CTRL_HCI_MODE_VHCI is not set
 CONFIG_BT_CTRL_MODE_EFF=1
 CONFIG_BT_CTRL_BLE_MAX_ACT=2
+
+# Heap — use ROM impl to save IRAM/flash
+CONFIG_HEAP_TLSF_USE_ROM_IMPL=y
+# CONFIG_HEAP_POISONING_LIGHT is not set
+# CONFIG_HEAP_POISONING_COMPREHENSIVE is not set
+# CONFIG_HEAP_TASK_TRACKING is not set
+
+# Disable assertions in release builds
+# CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_ENABLE is not set
+CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_SILENT=y
+# CONFIG_HAL_ASSERTION_EQUALS_SYSTEM is not set
+CONFIG_HAL_ASSERTION_SILENT=y
+
+# Disable extra debug features
+# CONFIG_FREERTOS_USE_TRACE_FACILITY is not set
+# CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS is not set
+# CONFIG_FREERTOS_DEBUG_OCDAWARE is not set
+# CONFIG_ESP_DEBUG_STUBS_ENABLE is not set
+# CONFIG_ESP_GDBSTUB_ENABLED is not set
+# CONFIG_ESP_COREDUMP_ENABLE is not set
+
+# WPA — use built-in crypto instead of mbedTLS where possible
+# (this can sometimes shrink the WPA supplicant footprint)
+CONFIG_WPA_MBEDTLS_CRYPTO=y
+
+# Disable mDNS legacy queries (we only need standard mDNS)
+# CONFIG_MDNS_RESOLVE_TEST_SERVICES is not set
+# CONFIG_MDNS_NETWORKING_SOCKET is not set
+
+# Disable error description string tables
+# CONFIG_BT_NIMBLE_ENABLE_PACKET_LOSS_INFO is not set
+# CONFIG_HEAP_USE_HOOKS is not set

@@ -1,12 +1,27 @@
 import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
+import preact from "@preact/preset-vite";
 import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [preact(), tailwindcss()],
+  resolve: {
+    alias: {
+      react: "preact/compat",
+      "react-dom": "preact/compat",
+      "react-dom/test-utils": "preact/test-utils",
+      "react/jsx-runtime": "preact/jsx-runtime",
+    },
+  },
   build: {
     outDir: "dist",
     emptyOutDir: true,
+    minify: "terser",
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        passes: 2,
+      },
+    },
   },
   server: {
     proxy: {

@@ -168,7 +168,7 @@ export default function App() {
           ref={fileInputRef}
           type="file"
           accept=".bin"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          onChange={(e) => setFile((e.target as HTMLInputElement).files?.[0] ?? null)}
           disabled={uploading}
           className="mb-4 block w-full text-sm text-stone-400 file:mr-4 file:rounded-lg file:border-0 file:bg-stone-700 file:px-4 file:py-2 file:text-sm file:font-medium file:text-stone-200 hover:file:bg-stone-600"
         />
