@@ -4,6 +4,6 @@
 # Name,     Type,     SubType,  Offset,     Size,       Flags
 nvs,        data,   nvs,        0x11000,    0xD000,
 otadata,    data,   ota,        0x1e000,    0x2000,
-app,        app,    ota_0,      0x20000,    0x2F0000,    encrypted
-safemode,   app,    ota_1,      0x310000,   0x100000,    encrypted
+app,        app,    ota_0,      0x20000,    0x310000,    encrypted
+safemode,   app,    ota_1,      0x330000,   0xe0000,     encrypted
 spiffs,     data,   spiffs,     0x410000,   0x3F0000,

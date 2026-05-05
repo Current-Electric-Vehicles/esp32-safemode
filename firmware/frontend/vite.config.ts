@@ -4,14 +4,6 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   plugins: [preact(), tailwindcss()],
-  resolve: {
-    alias: {
-      react: "preact/compat",
-      "react-dom": "preact/compat",
-      "react-dom/test-utils": "preact/test-utils",
-      "react/jsx-runtime": "preact/jsx-runtime",
-    },
-  },
   build: {
     outDir: "dist",
     emptyOutDir: true,
@@ -19,9 +11,16 @@ export default defineConfig({
     terserOptions: {
       compress: {
         drop_console: true,
-        passes: 2,
+        passes: 3,
+        unsafe: true,
+        unsafe_arrows: true,
+        unsafe_methods: true,
+      },
+      mangle: {
+        properties: false,
       },
     },
+    cssMinify: "lightningcss",
   },
   server: {
     proxy: {
