@@ -146,8 +146,10 @@ CONFIG_BT_NIMBLE_GAP_DEVICE_NAME="safemode"
 # CONFIG_BT_NIMBLE_HCI_VS is not set
 # CONFIG_BT_NIMBLE_BLE_POWER_CONTROL is not set
 CONFIG_BT_NIMBLE_LOG_LEVEL_NONE=y
-CONFIG_BT_NIMBLE_MAX_BONDS=0
-CONFIG_BT_NIMBLE_MAX_CCCDS=0
+# MAX_BONDS=0 triggers -Werror=array-bounds in ESP-IDF 5.x. Use 1 instead;
+# bonding/security is disabled so the array is allocated but never populated.
+CONFIG_BT_NIMBLE_MAX_BONDS=1
+CONFIG_BT_NIMBLE_MAX_CCCDS=1
 CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=128
 
 # BT controller — minimal config
