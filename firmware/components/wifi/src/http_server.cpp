@@ -85,7 +85,7 @@ void HttpServer::setCorsHeaders(httpd_req_t* req)
 {
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
     httpd_resp_set_hdr(req, "Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    httpd_resp_set_hdr(req, "Access-Control-Allow-Headers", "Content-Type, X-File-Size");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Headers", "Content-Type, X-Chunk-Offset");
 }
 
 esp_err_t HttpServer::handleOptions(httpd_req_t* req)
@@ -199,12 +199,33 @@ void HttpServer::registerRoutes()
     bootApp.user_ctx = this;
     httpd_register_uri_handler(handle_, &bootApp);
 
-    httpd_uri_t update = {};
-    update.uri = "/api/update";
-    update.method = HTTP_POST;
-    update.handler = handleUpdate;
-    update.user_ctx = this;
-    httpd_register_uri_handler(handle_, &update);
+    httpd_uri_t updateBegin = {};
+    updateBegin.uri = "/api/update/begin";
+    updateBegin.method = HTTP_POST;
+    updateBegin.handler = handleUpdateBegin;
+    updateBegin.user_ctx = this;
+    httpd_register_uri_handler(handle_, &updateBegin);
+
+    httpd_uri_t updateChunk = {};
+    updateChunk.uri = "/api/update/chunk";
+    updateChunk.method = HTTP_POST;
+    updateChunk.handler = handleUpdateChunk;
+    updateChunk.user_ctx = this;
+    httpd_register_uri_handler(handle_, &updateChunk);
+
+    httpd_uri_t updateFinish = {};
+    updateFinish.uri = "/api/update/finish";
+    updateFinish.method = HTTP_POST;
+    updateFinish.handler = handleUpdateFinish;
+    updateFinish.user_ctx = this;
+    httpd_register_uri_handler(handle_, &updateFinish);
+
+    httpd_uri_t updateAbort = {};
+    updateAbort.uri = "/api/update/abort";
+    updateAbort.method = HTTP_POST;
+    updateAbort.handler = handleUpdateAbort;
+    updateAbort.user_ctx = this;
+    httpd_register_uri_handler(handle_, &updateAbort);
 
     httpd_uri_t info = {};
     info.uri = "/api/info";
@@ -342,9 +363,9 @@ esp_err_t HttpServer::handleBootApp(httpd_req_t* req)
     return ESP_OK;
 }
 
-esp_err_t HttpServer::handleUpdate(httpd_req_t* req)
+esp_err_t HttpServer::handleUpdateBegin(httpd_req_t* req)
 {
-    ESP_LOGI(kTag, "API: OTA update (%d bytes)", req->content_len);
+    ESP_LOGI(kTag, "API: OTA begin");
     auto* server = static_cast<HttpServer*>(req->user_ctx);
     setCorsHeaders(req);
 
@@ -355,16 +376,58 @@ esp_err_t HttpServer::handleUpdate(httpd_req_t* req)
         return ESP_OK;
     }
 
-    esp_err_t ret = server->ota_->begin();
-    if (ret != ESP_OK)
+    // Discard any prior in-progress session before erasing again.
+    if (server->ota_->isActive())
+    {
+        server->ota_->abort();
+    }
+
+    if (server->ota_->begin() != ESP_OK)
     {
         sendJsonError(req, 500);
         return ESP_OK;
     }
 
+    sendJsonOk(req);
+    return ESP_OK;
+}
+
+esp_err_t HttpServer::handleUpdateChunk(httpd_req_t* req)
+{
+    auto* server = static_cast<HttpServer*>(req->user_ctx);
+    setCorsHeaders(req);
+
+    if (server->ota_ == nullptr || !server->ota_->isActive())
+    {
+        ESP_LOGW(kTag, "Chunk received with no active OTA session");
+        sendJsonError(req, 400);
+        return ESP_OK;
+    }
+
+    // Sequential ordering: chunk offset must equal current write position.
+    // Protects against duplicate or retried chunks corrupting the image.
+    char offsetHdr[16];
+    if (httpd_req_get_hdr_value_str(req, "X-Chunk-Offset", offsetHdr, sizeof(offsetHdr)) != ESP_OK)
+    {
+        ESP_LOGW(kTag, "Chunk missing X-Chunk-Offset header");
+        server->ota_->abort();
+        sendJsonError(req, 400);
+        return ESP_OK;
+    }
+
+    size_t expected = server->ota_->writeOffset();
+    size_t got = static_cast<size_t>(strtoul(offsetHdr, nullptr, 10));
+    if (got != expected)
+    {
+        ESP_LOGE(kTag, "Chunk offset mismatch: expected %u, got %u",
+                 (unsigned)expected, (unsigned)got);
+        server->ota_->abort();
+        sendJsonError(req, 400);
+        return ESP_OK;
+    }
+
     char buf[1024];
     int remaining = req->content_len;
-    int received = 0;
 
     while (remaining > 0)
     {
@@ -376,27 +439,39 @@ esp_err_t HttpServer::handleUpdate(httpd_req_t* req)
             {
                 continue;
             }
-            ESP_LOGE(kTag, "OTA receive error");
+            ESP_LOGE(kTag, "Chunk receive error");
             server->ota_->abort();
             sendJsonError(req, 500);
             return ESP_OK;
         }
 
-        ret = server->ota_->write(buf, read);
-        if (ret != ESP_OK)
+        if (server->ota_->write(buf, read) != ESP_OK)
         {
             sendJsonError(req, 500);
             return ESP_OK;
         }
-
-        received += read;
         remaining -= read;
     }
 
-    ESP_LOGI(kTag, "OTA: received %d bytes, finishing...", received);
+    sendJsonOk(req);
+    return ESP_OK;
+}
 
-    ret = server->ota_->finish();
-    if (ret != ESP_OK)
+esp_err_t HttpServer::handleUpdateFinish(httpd_req_t* req)
+{
+    auto* server = static_cast<HttpServer*>(req->user_ctx);
+    setCorsHeaders(req);
+
+    if (server->ota_ == nullptr || !server->ota_->isActive())
+    {
+        ESP_LOGW(kTag, "Finish received with no active OTA session");
+        sendJsonError(req, 400);
+        return ESP_OK;
+    }
+
+    ESP_LOGI(kTag, "API: OTA finish (%u bytes total)", (unsigned)server->ota_->writeOffset());
+
+    if (server->ota_->finish() != ESP_OK)
     {
         sendJsonError(req, 500);
         return ESP_OK;
@@ -404,6 +479,20 @@ esp_err_t HttpServer::handleUpdate(httpd_req_t* req)
 
     sendJsonOk(req);
     server->scheduleReboot(kDefaultRebootDelayMs);
+    return ESP_OK;
+}
+
+esp_err_t HttpServer::handleUpdateAbort(httpd_req_t* req)
+{
+    ESP_LOGI(kTag, "API: OTA abort");
+    auto* server = static_cast<HttpServer*>(req->user_ctx);
+    setCorsHeaders(req);
+
+    if (server->ota_ != nullptr)
+    {
+        server->ota_->abort();
+    }
+    sendJsonOk(req);
     return ESP_OK;
 }
 

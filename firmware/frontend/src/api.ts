@@ -45,36 +45,51 @@ export async function factoryReset(): Promise<boolean> {
   return json.result === true;
 }
 
-export function uploadFirmware(
+const kChunkSize = 64 * 1024;
+
+async function postJson(path: string, init?: RequestInit): Promise<boolean> {
+  const res = await fetch(apiUrl(path), { method: "POST", ...init });
+  if (!res.ok) return false;
+  try {
+    const json = await res.json();
+    return json.result === true;
+  } catch {
+    return false;
+  }
+}
+
+// Chunked OTA upload. Each chunk is a separate POST so progress reflects
+// bytes acknowledged by the device — same behavior on every browser.
+// Safari's XHR.upload.onprogress reports OS-buffer fill, not server acks,
+// which is why a single big POST jumps and stalls in Safari.
+export async function uploadFirmware(
   file: File,
   onProgress?: (pct: number) => void
 ): Promise<boolean> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", apiUrl("/api/update"));
-    xhr.setRequestHeader("X-File-Size", String(file.size));
+  if (!(await postJson("/api/update/begin"))) {
+    return false;
+  }
 
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable && onProgress) {
-        onProgress(Math.round((e.loaded / e.total) * 100));
-      }
-    };
+  try {
+    for (let offset = 0; offset < file.size; offset += kChunkSize) {
+      const end = Math.min(offset + kChunkSize, file.size);
+      const chunk = file.slice(offset, end);
+      const res = await fetch(apiUrl("/api/update/chunk"), {
+        method: "POST",
+        headers: { "X-Chunk-Offset": String(offset) },
+        body: chunk,
+      });
+      if (!res.ok) throw new Error("chunk rejected");
+      const json = await res.json();
+      if (json.result !== true) throw new Error("chunk failed");
+      if (onProgress) onProgress(Math.round((end / file.size) * 100));
+    }
+  } catch {
+    await postJson("/api/update/abort").catch(() => {});
+    return false;
+  }
 
-    xhr.onload = () => {
-      try {
-        const json = JSON.parse(xhr.responseText);
-        resolve(json.result === true);
-      } catch {
-        resolve(false);
-      }
-    };
-
-    xhr.onerror = () => reject(new Error("Upload failed"));
-    xhr.ontimeout = () => reject(new Error("Upload timed out"));
-    xhr.timeout = 120000;
-
-    xhr.send(file);
-  });
+  return postJson("/api/update/finish");
 }
 
 export async function getInfo(): Promise<DeviceInfo> {

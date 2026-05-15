@@ -46,7 +46,10 @@ private:
     static esp_err_t handlePing(httpd_req_t* req);
     static esp_err_t handleRestart(httpd_req_t* req);
     static esp_err_t handleBootApp(httpd_req_t* req);
-    static esp_err_t handleUpdate(httpd_req_t* req);
+    static esp_err_t handleUpdateBegin(httpd_req_t* req);
+    static esp_err_t handleUpdateChunk(httpd_req_t* req);
+    static esp_err_t handleUpdateFinish(httpd_req_t* req);
+    static esp_err_t handleUpdateAbort(httpd_req_t* req);
     static esp_err_t handleInfo(httpd_req_t* req);
     static esp_err_t handleFactoryReset(httpd_req_t* req);
 

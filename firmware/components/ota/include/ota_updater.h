@@ -34,6 +34,10 @@ public:
     /// Returns true if an update is in progress.
     bool isActive() const { return active_; }
 
+    /// Current byte offset in the target partition. Equals total bytes written
+    /// since begin(). Used by chunked upload to validate chunk ordering.
+    size_t writeOffset() const { return writeOffset_; }
+
 private:
     static constexpr const char* kTag = "ota";
 
