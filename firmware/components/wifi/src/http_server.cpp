@@ -1,5 +1,6 @@
 #include "http_server.h"
 
+#include "ble_info.h"
 #include "esp_app_desc.h"
 #include "esp_chip_info.h"
 #include "esp_log.h"
@@ -109,10 +110,23 @@ void HttpServer::factoryResetTask(void* arg)
     vTaskDelay(pdMS_TO_TICKS(2000));
 
     ESP_LOGI("http_server", "Performing factory reset...");
-    // Stop WiFi first — the PHY background task accesses NVS calibration
-    // data and will crash if we erase NVS while it's running.
+    // Stop both radios first — the PHY background task accesses NVS
+    // calibration data and will crash if we erase NVS while it's running.
+    // The BT controller holds its own PHY reference, so stopping WiFi alone
+    // leaves the PHY powered while BLE is up.
     esp_wifi_stop();
-    safemode::performFactoryReset();
+    safemode::ble::stopInfoBroadcast();
+
+    esp_err_t ret = safemode::performFactoryReset();
+    if (ret != ESP_OK)
+    {
+        // Leave the boot partition alone so the device comes back to
+        // safemode, where the reset can be retried, instead of handing a
+        // half-reset device to the app.
+        ESP_LOGE("http_server", "Factory reset failed (%s), rebooting into safemode",
+                 esp_err_to_name(ret));
+        esp_restart();
+    }
 
     // Set boot partition to the app (first non-safemode app partition)
     esp_partition_iterator_t it = esp_partition_find(
@@ -122,8 +136,18 @@ void HttpServer::factoryResetTask(void* arg)
         const esp_partition_t* p = esp_partition_get(it);
         if (strcmp(p->label, "safemode") != 0)
         {
-            esp_ota_set_boot_partition(p);
-            ESP_LOGI("http_server", "Boot partition set to '%s'", p->label);
+            // A refusal here (e.g. a half-written app image) leaves otadata
+            // pointing at safemode, so the reboot below lands back here.
+            esp_err_t bootRet = esp_ota_set_boot_partition(p);
+            if (bootRet == ESP_OK)
+            {
+                ESP_LOGI("http_server", "Boot partition set to '%s'", p->label);
+            }
+            else
+            {
+                ESP_LOGE("http_server", "Cannot boot '%s' (%s), staying in safemode",
+                         p->label, esp_err_to_name(bootRet));
+            }
             break;
         }
         it = esp_partition_next(it);

@@ -47,6 +47,9 @@ static const ble_uuid128_t kVersionUuid =
 
 static Info sInfo;
 static std::string sDeviceName;
+// nimble_port_stop() on a stack that never started blocks forever waiting
+// for a host task that doesn't exist, so stop is a no-op unless start won.
+static bool sRunning = false;
 
 static uint16_t sSsidHandle = 0;
 static uint16_t sPasswordHandle = 0;
@@ -270,6 +273,7 @@ esp_err_t startInfoBroadcast(const Info& info)
     }
 
     nimble_port_freertos_init(hostTask);
+    sRunning = true;
 
     ESP_LOGI(kTag, "BLE info service initialized — ssid=%s ip=%s version=%s",
              sInfo.ssid.c_str(), sInfo.ipAddress.c_str(), sInfo.firmwareVersion.c_str());
@@ -278,6 +282,12 @@ esp_err_t startInfoBroadcast(const Info& info)
 
 esp_err_t stopInfoBroadcast()
 {
+    if (!sRunning)
+    {
+        return ESP_OK;
+    }
+    sRunning = false;
+
     int rc = nimble_port_stop();
     if (rc != 0)
     {

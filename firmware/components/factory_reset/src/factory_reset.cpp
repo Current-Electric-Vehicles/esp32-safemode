@@ -243,14 +243,17 @@ esp_err_t performFactoryReset()
 {
     ESP_LOGI(kTag, "Starting factory reset...");
 
-    // 1. Read the preserve list
-    char preserveList[kMaxValueSize] = {};
+    // 1. Read the preserve list. Heap rather than stack: this runs in an 8 KB
+    //    task, and a 4 KB local spent half of it before any NVS or flash
+    //    call ran.
+    std::vector<char> preserveBuffer(kMaxValueSize, '\0');
+    char* preserveList = preserveBuffer.data();
     {
         nvs_handle_t handle;
         esp_err_t ret = nvs_open(kNamespace, NVS_READONLY, &handle);
         if (ret == ESP_OK)
         {
-            size_t len = sizeof(preserveList);
+            size_t len = preserveBuffer.size();
             ret = nvs_get_str(handle, kPreserveKey, preserveList, &len);
             nvs_close(handle);
             if (ret != ESP_OK)

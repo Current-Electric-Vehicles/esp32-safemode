@@ -30,7 +30,6 @@ export default function App() {
   } | null>(null);
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
   const [showInfo, setShowInfo] = useState(false);
-  const [showRebootOptions, setShowRebootOptions] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Poll connectivity
@@ -100,13 +99,14 @@ export default function App() {
   }, []);
 
   const handleFactoryReset = useCallback(async () => {
-    if (!confirm("This will erase all device settings. Continue?")) return;
+    if (!confirm("This will erase all device settings and stored data. Continue?")) return;
     setMessage(null);
     try {
       const ok = await factoryReset();
       if (ok) {
-        setMessage({ text: "Factory reset complete.", type: "success" });
-        setShowRebootOptions(true);
+        // The device drops off WiFi, erases, and reboots into the app on its
+        // own; there's nothing further to do from this page.
+        setMessage({ text: "Factory reset started. The device will erase its data and reboot into the app. This can take up to a minute. Do not power off the device.", type: "success" });
       } else {
         setMessage({ text: "Factory reset failed.", type: "error" });
       }
@@ -136,24 +136,6 @@ export default function App() {
           }`}
         >
           {message.text}
-        </div>
-      )}
-
-      {/* Post-reset reboot options */}
-      {showRebootOptions && (
-        <div className="mb-4 flex gap-3">
-          <button
-            onClick={async () => { setShowRebootOptions(false); await bootIntoApp(); setMessage({ text: "Rebooting into app...", type: "success" }); }}
-            className="flex-1 rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-orange-400"
-          >
-            Reboot into App
-          </button>
-          <button
-            onClick={async () => { setShowRebootOptions(false); await restart(); setMessage({ text: "Restarting in safemode...", type: "success" }); }}
-            className="flex-1 rounded-lg bg-stone-700 px-4 py-2.5 text-sm font-medium text-stone-200 transition-colors hover:bg-stone-600"
-          >
-            Stay in Safemode
-          </button>
         </div>
       )}
 

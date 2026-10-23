@@ -134,15 +134,21 @@ Each entry is `namespace:key:type` where type is one of:
 
 ### How Factory Reset Works
 
-1. Reads the preserve list from `safemode:factoryResetPreserve`
-2. Backs up each listed key (with its typed value) into RAM
-3. Calls `nvs_flash_erase()` — wipes **all** NVS data across all namespaces
-4. Calls `nvs_flash_init()` — reinitializes the empty NVS partition
-5. Writes back the preserved keys
+1. Safemode stops WiFi and BLE, because the radio code reads NVS while it runs.
+2. It reads the preserve list from `safemode:frPreserve`.
+3. It backs up each listed key and its typed value into RAM.
+4. It erases every data partition except the `nvs`, `nvs_keys`, `ota`, and `phy` subtypes. This removes LittleFS, SPIFFS, FAT, coredump, and unknown data partitions.
+5. It calls `nvs_flash_erase()`, which wipes all namespaces in the default NVS partition (label `nvs`).
+6. It calls `nvs_flash_init()` and writes back the preserved keys.
+7. It sets the boot partition to the first app partition whose label is not `safemode`, and reboots.
 
-NVS doesn't support selective deletion, so it's a full wipe-and-restore. Keys in the preserve list survive; everything else is gone.
+If the NVS erase or the NVS init fails, the device reboots into safemode, and you can try again.
 
-If you include `safemode:factoryResetEnabled` and `safemode:factoryResetPreserve` in the preserve list, factory reset remains available after the reset. If you omit them, it's a one-shot reset — the button disappears on the next boot into safemode.
+NVS does not support selective deletion, so safemode does a full wipe and restore. Keys in the preserve list survive. Everything else is gone. Safemode does not erase other partitions of the NVS subtype, for example a second NVS partition with a different label.
+
+Your app must format its file system partitions again on the next boot. For example, set `format_if_mount_failed = true` when you mount LittleFS or SPIFFS.
+
+If you include `safemode:frEnabled` and `safemode:frPreserve` in the preserve list, factory reset stays available after the reset. If you omit them, the reset works one time only, and the button disappears on the next boot into safemode.
 
 ## Web UI
 

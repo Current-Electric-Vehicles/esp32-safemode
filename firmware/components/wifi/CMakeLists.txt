@@ -44,5 +44,6 @@ idf_component_register(
         ota
         esp_timer
         app_update
+        ble_info
         factory_reset
 )
